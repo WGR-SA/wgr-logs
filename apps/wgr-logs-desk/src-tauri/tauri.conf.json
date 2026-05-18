@@ -1,0 +1,67 @@
+{
+  "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
+  "productName": "WGR Logs",
+  "version": "0.1.0",
+  "identifier": "ch.wgr.logs",
+  "build": {
+    "frontendDist": "../.output/public",
+    "devUrl": "http://localhost:1421",
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run generate"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "WGR Logs",
+        "width": 1100,
+        "height": 720,
+        "minWidth": 880,
+        "minHeight": 540,
+        "resizable": true,
+        "fullscreen": false,
+        "decorations": true,
+        "transparent": false,
+        "backgroundColor": "#0a0a0a"
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["app", "dmg", "nsis"],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "createUpdaterArtifacts": true,
+    "macOS": {
+      "minimumSystemVersion": "11.0"
+    },
+    "windows": {
+      "nsis": {
+        "installMode": "perMachine"
+      }
+    },
+    "category": "Developer Tools",
+    "shortDescription": "WGR observability desktop client",
+    "longDescription": "Desktop client for the WGR Logs stack — live tail, search, alerts, native notifications. By WGR."
+  },
+  "plugins": {
+    "updater": {
+      "active": true,
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEEyQjVGRUZGNEM2QjQ2QzUKUldURlJtdE0vLzYxb25wTXRwbDlaMThtS1JBRW1zS1k1dENTTkJzYVNTR0F5cGdDWjFaeEF3OU8K",
+      "endpoints": [
+        "https://github.com/wgr-sa/wgr-logs/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
+  }
+}

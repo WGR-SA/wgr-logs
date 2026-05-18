@@ -1,0 +1,72 @@
+name: Release wgr-logs-desk
+
+on:
+  push:
+    tags:
+      - 'desk-v*'
+  workflow_dispatch:
+
+jobs:
+  release:
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-14
+            target: aarch64-apple-darwin
+            args: --target aarch64-apple-darwin
+          - platform: macos-14
+            target: x86_64-apple-darwin
+            args: --target x86_64-apple-darwin
+          - platform: windows-latest
+            target: x86_64-pc-windows-msvc
+            args: ''
+
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Cache Rust
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: apps/wgr-logs-desk/src-tauri
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build TS lib
+        run: npm run build:client
+
+      - name: Resolve tag name
+        id: tag
+        env:
+          REF_NAME: ${{ github.ref_name }}
+        run: echo "name=$REF_NAME" >> "$GITHUB_OUTPUT"
+
+      - name: Build Tauri app
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          projectPath: apps/wgr-logs-desk
+          tagName: ${{ steps.tag.outputs.name }}
+          releaseName: WGR Logs ${{ steps.tag.outputs.name }}
+          releaseBody: See CHANGELOG for details.
+          releaseDraft: true
+          prerelease: false
+          args: ${{ matrix.args }}

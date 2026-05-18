@@ -1,0 +1,19 @@
+@import 'tailwindcss';
+@import '@nuxt/ui';
+
+@theme {
+  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+  --color-bg: #0a0a0a;
+  --color-fg: #fafafa;
+}
+
+html, body, #__nuxt {
+  height: 100%;
+  background: var(--color-bg);
+  color: var(--color-fg);
+}
+
+::selection {
+  background: rgba(56, 189, 248, 0.35);
+}
