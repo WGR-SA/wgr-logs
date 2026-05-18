@@ -1,5 +1,21 @@
 # Brancher une appli CakePHP
 
+> ⚠️ **DEPRECATED — utilise [`shipper-bash.md`](shipper-bash.md) ou [`shipper-php.md`](shipper-php.md).**
+>
+> Ce guide décrit la config CakePHP en JSON (`JsonFormatter`) + setup manuel d'Alloy.
+>
+> La partie **CakePHP JSON formatter** reste valable (config app.php → JsonFormatter).
+> La partie **Alloy install + ACL** est remplacée par `scripts/install-shipper.sh`.
+>
+> Workflow recommandé maintenant :
+> 1. Configurer CakePHP en JSON (section 1 de ce guide)
+> 2. Lancer `install-shipper.sh` sur le serveur (managed mode)
+> 3. Ajouter une source `cakephp` avec `base_dir=/var/www` via l'UI desktop
+>
+> Pour un mutu sans systemd → utiliser `shipper-php.md`.
+
+---
+
 CakePHP en bare metal (Apache/Nginx + PHP-FPM) → logs JSON dans `logs/` → Alloy tail → wgr-logs.
 
 ## 1. Configurer CakePHP pour logger en JSON

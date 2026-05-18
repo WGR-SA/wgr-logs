@@ -1,5 +1,18 @@
 # Brancher un serveur PM2
 
+> ⚠️ **DEPRECATED — utilise [`shipper-bash.md`](shipper-bash.md) à la place.**
+>
+> Ce guide décrit l'installation manuelle d'Alloy + edition de fichier `.alloy`. Tout ça est désormais
+> automatisé par `scripts/install-shipper.sh` (curl ∣ bash one-liner) qui :
+> - installe Alloy
+> - enrôle l'agent dans l'API
+> - configure le polling + reload auto
+> - permet d'ajouter PM2 / nginx / journald comme sources via l'UI desktop
+>
+> Ce fichier est conservé pour référence historique uniquement.
+
+---
+
 Install Alloy comme service systemd → tail des logs PM2 → push vers `<INGEST_DOMAIN>`.
 
 ## 1. Install Alloy (Debian / Ubuntu)

@@ -1,64 +1,147 @@
 # wgr-logs
 
-Self-hosted log aggregation for WGR sites, apps, and infrastructure.
-
-> Loki + Grafana + Alloy on Infomaniak Swiss Backup S3, plus a Nuxt 4 + Tauri 2 desktop client and a shared TS SDK.
-
-## Stack
-
-| Layer | Tech |
-|---|---|
-| Backend | [Grafana Loki 3](https://grafana.com/oss/loki/) |
-| Storage | Infomaniak Swiss Backup (S3) |
-| Collector | [Grafana Alloy](https://grafana.com/docs/alloy/latest/) + Docker `loki` driver + Cloudflare Tail Worker |
-| UI | Grafana OSS 11 |
-| Alerting | Grafana Alerting → Slack + Tauri native notifications |
-| Reverse proxy | Traefik v2.11 + Let's Encrypt |
-| Desktop | Nuxt 4 + Tauri 2 (`apps/wgr-logs-desk`) |
-| SDK | `@wgr/logs-client` (`packages/logs-client`) |
-
-## Layout
+Self-hosted log aggregation pour WGR — Loki + Grafana + Alloy avec **agents pilotés depuis une UI desktop** et stockage souverain (Infomaniak Swiss Backup S3).
 
 ```
-.
-├── docker-compose.yml     # full stack (Traefik + Loki + Grafana + Alloy)
-├── docker/                # service configs
-├── apps/wgr-logs-desk/    # desktop app
-├── packages/logs-client/  # TypeScript SDK
-├── scripts/deploy.sh      # SSH deploy
-└── docs/connectors.md     # how to ship logs from any source
+┌─────────────────── stack VPS wgr-logs ──────────────────┐
+│                                                          │
+│  Traefik  →  Loki (S3)  ──→  ┌─────────────┐             │
+│           →  Grafana    ──→  │  Postgres   │             │
+│           →  API        ──→  │  + backups  │             │
+│                              └─────────────┘             │
+└──────────────────────────────────────────────────────────┘
+              ▲              ▲              ▲
+              │ push logs    │ poll config  │
+              │              │              │
+   ┌──────────┴──┐  ┌────────┴───┐  ┌───────┴─────┐
+   │  shipper    │  │  shipper   │  │  PHP cron   │
+   │  Docker     │  │  bash      │  │  (mutu)     │
+   └─────────────┘  └────────────┘  └─────────────┘
+        │
+        │ admin UI
+        ▼
+   ┌─────────────┐
+   │ wgr-logs-   │
+   │ desk (Tauri)│
+   └─────────────┘
 ```
 
-## Quickstart (local)
+## Endpoints en prod
+
+| URL | Service | Notes |
+|---|---|---|
+| `https://<LOGS_DOMAIN>` | Grafana | Dashboards, Explore, Alerting |
+| `https://<LOGS_DOMAIN>/mgmt` | Management API | NestJS, JSON, Bearer auth |
+| `https://<INGEST_DOMAIN>` | Loki push | Basic auth Bearer = ingest token |
+
+## Comment brancher un nouveau serveur
+
+| Profil | Outil | Doc |
+|---|---|---|
+| VPS Docker | Image `ghcr.io/wgr-sa/wgr-logs-shipper:latest` | [`docs/shipper-docker.md`](docs/shipper-docker.md) |
+| VPS Linux sans Docker | `scripts/install-shipper.sh` (curl ∣ bash) | [`docs/shipper-bash.md`](docs/shipper-bash.md) |
+| Hébergement mutualisé | `scripts/php-pusher/wgr-logs-push.php` en cron | [`docs/shipper-php.md`](docs/shipper-php.md) |
+| Cloudflare Worker | Tail Worker (phase D, à venir) | — |
+| Site front / browser | Lib `@wgr/logs-browser` (phase E, à venir) | — |
+
+Tous les shippers (sauf le PHP cron) supportent un **mode managed** : ils pollent l'API toutes les 60s, tu pilotes leurs sources depuis l'app desktop, plus de JSON à éditer par serveur.
+
+## Stack & repo layout
+
+```
+wgr-logs/
+├── docker-compose.yml              # stack VPS (8 services)
+├── docker/                         # configs Loki + Grafana provisioning
+├── apps/
+│   ├── wgr-logs-api/               # NestJS + TypeORM + Postgres (admin API)
+│   ├── wgr-logs-desk/              # Nuxt 4 + Tauri 2 (admin UI)
+│   └── wgr-logs-shipper/           # image Docker (managed + static)
+├── packages/
+│   ├── alloy-modules/              # 9 modules Alloy paramétrables + JSON schema
+│   └── logs-client/                # client TS typé pour Loki API
+├── scripts/
+│   ├── deploy.sh                   # déploiement stack VPS via SSH
+│   ├── install-shipper.sh          # installer bash self-contained
+│   └── php-pusher/wgr-logs-push.php # PHP cron pour mutu
+└── docs/                           # guides détaillés (voir tableau ci-dessus)
+```
+
+## Docs
+
+- [`docs/architecture.md`](docs/architecture.md) — vue d'ensemble, flows, sécurité, schéma de données
+- [`docs/api.md`](docs/api.md) — référence des endpoints `/mgmt/*`
+- [`docs/shipper-docker.md`](docs/shipper-docker.md) | [`shipper-bash.md`](docs/shipper-bash.md) | [`shipper-php.md`](docs/shipper-php.md) — guides shippers
+- [`docs/runbook.md`](docs/runbook.md) — incidents fréquents
+- [`docs/ROADMAP.md`](docs/ROADMAP.md) — phases livrées + à venir
+- [`SYNC-WORKFLOW.md`](SYNC-WORKFLOW.md) — release & deploy workflows
+
+## Quickstart local (dev de la stack elle-même)
 
 ```bash
 cp .env.example .env
-# fill S3 + Slack creds
+# remplir les credentials Infomaniak S3, tokens, etc.
+
+# Image API + shipper sont sur ghcr public
+docker compose pull
+
+# Démarrer
 docker compose up -d
-docker compose ps
-open https://localhost   # Traefik routes; needs /etc/hosts entries for *.wgr.ch
+
+# Healthchecks
+curl https://<LOGS_DOMAIN>/api/health      # Grafana
+curl https://<LOGS_DOMAIN>/mgmt/health     # API
+curl -fsS https://<INGEST_DOMAIN>/ready    # Loki
 ```
 
-## Connecting a source
+## Brancher en 3 min (le cas le plus courant)
 
-See [`docs/connectors.md`](./docs/connectors.md) for ready-to-paste snippets:
+1. Sur le serveur cible Debian/Ubuntu, en root :
+   ```bash
+   curl -sSL https://raw.githubusercontent.com/wgr-sa/wgr-logs/main/scripts/install-shipper.sh \
+     | sudo bash -s -- \
+         --api-url https://<LOGS_DOMAIN>/mgmt \
+         --register-token <REG> \
+         --ingest-token <INGEST> \
+         --name $(hostname)
+   ```
+2. Ouvre l'app desktop → onglet **Agents** → tu vois ton nouveau serveur
+3. Clique dessus → "+ Ajouter une source" → choisis le type (pm2, cakephp, nginx, journald…) → l'agent applique dans la minute
+4. Va dans Explore Grafana : `{host="ton-serveur"}` → logs vivants
 
-- Docker apps (Nuxt, Strapi, NestJS) — `logging.driver: loki`
-- Linux hosts (journald, nginx) — Alloy
-- Cloudflare Workers — Tail Worker → HTTPS push
+## Désinstall sur un serveur
 
-## Deploy
+| Type | Commande |
+|---|---|
+| Docker | `docker compose down -v` |
+| Bash | `sudo bash install-shipper.sh --uninstall` |
+| PHP | retirer le cron + `rm -rf ~/wgr-logs` |
+
+L'agent reste dans la DB (visible dans l'UI). Supprimer côté UI pour le retirer définitivement.
+
+## Sécurité
+
+- `.env` jamais commité (cf. `.gitignore`)
+- Token agent stocké en bcrypt côté DB, jamais leak via l'API (test `@Exclude()` validé)
+- 3 tokens distincts par rôle :
+  - `INGEST_AUTH_TOKEN` (Basic auth Loki push, partagé par tous les shippers)
+  - `WGR_API_ADMIN_TOKEN` (UI admin)
+  - `WGR_API_REGISTER_TOKEN` (one-time pour enroller un nouvel agent)
+- Cert TLS Let's Encrypt auto-renewed par Traefik
+- Pas d'OAuth/SSO pour démarrer (token-based)
+
+## Contribuer
 
 ```bash
-npm run deploy:stack
-```
+# Setup local
+npm install                            # workspaces : api, desk, lib, modules
+npm run build:client                   # build la lib partagée
+npm test -w @wgr/logs-client           # tests Vitest
 
-Pushes compose + configs to the prod VPS over SSH and restarts the stack.
+# Itérer sur l'API
+cd apps/wgr-logs-api && npm run start:dev
 
-## Desktop app
+# Itérer sur le desktop
+npm run tauri:dev:desk
 
-```bash
-cd apps/wgr-logs-desk
-npm install
-npm run tauri:dev
+# Commit & push (pre-commit hooks via .github/workflows/)
 ```

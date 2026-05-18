@@ -1,5 +1,10 @@
 # Brancher une source à wgr-logs
 
+> 📖 **Pour la plupart des cas, utilise les shippers de wgr-logs (managed via UI desktop).**
+> Voir : [`shipper-docker.md`](shipper-docker.md) | [`shipper-bash.md`](shipper-bash.md) | [`shipper-php.md`](shipper-php.md)
+>
+> Ce document décrit les patterns **bas-niveau** (Docker Loki driver, push HTTP direct, etc.) — utile pour des cas spéciaux où les shippers ne conviennent pas (Cloudflare Workers, app Tauri user-side, browser).
+
 Tous les connecteurs poussent sur `https://<INGEST_DOMAIN>/loki/api/v1/push` avec un Bearer token (`INGEST_AUTH_TOKEN`). Le token est partagé pour toutes les sources, distinct du mot de passe Grafana.
 
 ## Règles de labels
