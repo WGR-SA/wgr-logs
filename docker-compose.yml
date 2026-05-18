@@ -158,20 +158,19 @@ services:
       pg:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/health"]
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/mgmt/health"]
       interval: 10s
       timeout: 5s
       retries: 10
     restart: always
     labels:
       - traefik.enable=true
-      - traefik.http.routers.api.entrypoints=websecure
-      - traefik.http.routers.api.rule=Host(`${LOGS_DOMAIN}`) && PathPrefix(`/mgmt`)
-      - traefik.http.routers.api.priority=100
-      - traefik.http.routers.api.tls=true
-      - traefik.http.routers.api.tls.certresolver=letsencrypt
-      - traefik.http.routers.api.middlewares=cors-api@docker
-      - traefik.http.services.api.loadbalancer.server.port=3000
+      - traefik.http.routers.wgr-api.entrypoints=websecure
+      - traefik.http.routers.wgr-api.rule=Host(`${LOGS_DOMAIN}`) && PathPrefix(`/mgmt`)
+      - traefik.http.routers.wgr-api.tls=true
+      - traefik.http.routers.wgr-api.tls.certresolver=letsencrypt
+      - traefik.http.routers.wgr-api.middlewares=cors-api@docker
+      - traefik.http.services.wgr-api.loadbalancer.server.port=3000
       - traefik.http.middlewares.cors-api.headers.accessControlAllowOriginList=tauri://localhost,http://localhost:1421,http://localhost:3000
       - traefik.http.middlewares.cors-api.headers.accessControlAllowMethods=GET,POST,PUT,DELETE,PATCH,OPTIONS,HEAD
       - traefik.http.middlewares.cors-api.headers.accessControlAllowHeaders=Content-Type,Authorization
