@@ -1,0 +1,90 @@
+auth_enabled: false
+
+server:
+  http_listen_port: 3100
+  grpc_listen_port: 9096
+  log_level: info
+
+common:
+  instance_addr: 127.0.0.1
+  path_prefix: /loki
+  replication_factor: 1
+  ring:
+    kvstore:
+      store: inmemory
+
+schema_config:
+  configs:
+    - from: 2025-01-01
+      store: tsdb
+      object_store: s3
+      schema: v13
+      index:
+        prefix: index_
+        period: 24h
+
+storage_config:
+  tsdb_shipper:
+    active_index_directory: /loki/tsdb-index
+    cache_location: /loki/tsdb-cache
+  aws:
+    endpoint: ${S3_ENDPOINT}
+    bucketnames: ${S3_BUCKET_CHUNKS}
+    region: ${S3_REGION}
+    access_key_id: ${S3_ACCESS_KEY}
+    secret_access_key: ${S3_SECRET_KEY}
+    s3forcepathstyle: true
+    insecure: false
+
+ingester:
+  wal:
+    dir: /loki/wal
+    enabled: true
+  chunk_idle_period: 30m
+  chunk_retain_period: 1m
+  max_chunk_age: 1h
+
+compactor:
+  working_directory: /loki/compactor
+  compaction_interval: 10m
+  retention_enabled: true
+  retention_delete_delay: 2h
+  retention_delete_worker_count: 150
+  delete_request_store: s3
+
+limits_config:
+  retention_period: 90d
+  reject_old_samples: true
+  reject_old_samples_max_age: 168h
+  max_query_lookback: 90d
+  ingestion_rate_mb: 10
+  ingestion_burst_size_mb: 20
+  max_label_name_length: 1024
+  max_label_value_length: 4096
+
+query_range:
+  results_cache:
+    cache:
+      embedded_cache:
+        enabled: true
+        max_size_mb: 256
+
+ruler:
+  storage:
+    type: s3
+    s3:
+      endpoint: ${S3_ENDPOINT}
+      bucketnames: ${S3_BUCKET_RULER}
+      region: ${S3_REGION}
+      access_key_id: ${S3_ACCESS_KEY}
+      secret_access_key: ${S3_SECRET_KEY}
+      s3forcepathstyle: true
+  rule_path: /loki/rules
+  alertmanager_url: http://grafana:3000/alertmanager
+  enable_alertmanager_v2: true
+  ring:
+    kvstore:
+      store: inmemory
+
+analytics:
+  reporting_enabled: false

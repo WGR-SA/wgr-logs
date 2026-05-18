@@ -1,0 +1,51 @@
+name: Deploy stack
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docker-compose.yml'
+      - 'docker/**'
+      - '.env.example'
+      - 'scripts/deploy.sh'
+      - '.github/workflows/deploy-stack.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-stack
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Pull and restart on server
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            set -euo pipefail
+            cd ~/wgr-logs
+            git pull origin main
+            docker compose pull
+            docker compose up -d --remove-orphans
+            docker compose ps
+
+      - name: Verify Loki ready
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            for i in $(seq 1 30); do
+              if curl -sf http://localhost:3100/ready >/dev/null; then
+                echo "Loki ready"
+                exit 0
+              fi
+              sleep 5
+            done
+            echo "Loki not ready after 150s"
+            exit 1

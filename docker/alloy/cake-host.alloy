@@ -1,0 +1,108 @@
+// Grafana Alloy — host-level shipper for CakePHP logs.
+// Deploy on a server running a CakePHP app to tail its logs/ directory and ship to wgr-logs.
+//
+// Reads:
+//   <CAKE_LOGS_PATH>/<log_type>.log   (error.log, debug.log, queries.log, cli-error.log, etc.)
+// Labels emitted:
+//   app=<CAKE_APP_NAME>, env=prod, host=<hostname>, log_type=error|debug|queries|...,
+//   level=<extracted from JSON if present, fallback per log_type>
+//
+// Requires env vars (set via /etc/alloy/.env):
+//   - WGR_INGEST_TOKEN
+//   - CAKE_APP_NAME       (e.g. "cab-data", "ofrou-cms")
+//   - CAKE_LOGS_PATH      (e.g. "/var/www/cab-data/logs")
+//   - CAKE_ENV            (defaults to "prod" if not set)
+
+logging {
+  level  = "info"
+  format = "logfmt"
+}
+
+local.file_match "cake" {
+  path_targets = [
+    {
+      __path__ = sys.env("CAKE_LOGS_PATH") + "/*.log",
+      app      = sys.env("CAKE_APP_NAME"),
+      env      = coalesce(sys.env("CAKE_ENV"), "prod"),
+      host     = constants.hostname,
+      source   = "cakephp",
+    },
+  ]
+}
+
+loki.process "cake" {
+  forward_to = [loki.write.wgr.receiver]
+
+  // Extract log file type from filename (error, debug, queries, cli-error, ...)
+  stage.regex {
+    expression = ".*/(?P<log_type>[a-z][a-z-]*)\\.log$"
+    source     = "filename"
+  }
+  stage.labels {
+    values = { log_type = "" }
+  }
+
+  // Try JSON parse (works when CakePHP uses JsonFormatter)
+  stage.json {
+    expressions = {
+      json_level   = "level",
+      json_message = "message",
+      json_date    = "date",
+    }
+  }
+  stage.labels {
+    values = { level = "json_level" }
+  }
+
+  // Fallback: derive level from log_type if JSON parse didn't yield a level
+  stage.match {
+    selector = "{level=\"\"}"
+    stage.template {
+      source   = "level"
+      template = "{{ if eq .Value \"\" }}{{ end }}"
+    }
+  }
+  stage.match {
+    selector = "{level=\"\", log_type=\"error\"}"
+    stage.static_labels {
+      values = { level = "error" }
+    }
+  }
+  stage.match {
+    selector = "{level=\"\", log_type=\"debug\"}"
+    stage.static_labels {
+      values = { level = "debug" }
+    }
+  }
+  stage.match {
+    selector = "{level=\"\", log_type=\"queries\"}"
+    stage.static_labels {
+      values = { level = "info" }
+    }
+  }
+  stage.match {
+    selector = "{level=\"\", log_type=\"cli-error\"}"
+    stage.static_labels {
+      values = { level = "error" }
+    }
+  }
+}
+
+loki.source.file "cake" {
+  targets       = local.file_match.cake.targets
+  forward_to    = [loki.process.cake.receiver]
+  tail_from_end = false
+}
+
+loki.write "wgr" {
+  endpoint {
+    url = "https://<INGEST_DOMAIN>/loki/api/v1/push"
+    basic_auth {
+      username = "wgr"
+      password = sys.env("WGR_INGEST_TOKEN")
+    }
+  }
+  external_labels = {
+    cluster = "wgr-prod",
+  }
+}
