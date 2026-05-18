@@ -1,0 +1,40 @@
+# Managed mode compose — the shipper poll the API for its config.
+# Pas besoin de sources.json local : tout est piloté depuis <LOGS_DOMAIN>/agents (admin UI).
+#
+# Variables à mettre dans .env :
+#   WGR_INGEST_TOKEN     = le token Bearer pour pousser dans Loki
+#   WGR_REGISTER_TOKEN   = le token one-time pour enroller cet agent (cf. WGR_API_REGISTER_TOKEN du serveur wgr-logs)
+#
+# Premier boot : le shipper s'enrôle automatiquement via POST /mgmt/agents/register,
+# sauve son agent_id + agent_token dans le volume `shipper-state`.
+# Tu vois l'agent apparaître dans l'UI desktop avec status=pending → active dès le 1er heartbeat.
+# Ajoute des sources via l'UI → le shipper les pull dans les 60s + reload Alloy.
+
+services:
+  shipper:
+    image: ghcr.io/wgr-sa/wgr-logs-shipper:latest
+    restart: always
+    environment:
+      # Activate managed mode (presence of WGR_API_URL switches modes)
+      WGR_API_URL: https://<LOGS_DOMAIN>/mgmt
+      WGR_INGEST_TOKEN: ${WGR_INGEST_TOKEN}
+      WGR_REGISTER_TOKEN: ${WGR_REGISTER_TOKEN}
+      # Optional: agent display name (defaults to hostname)
+      WGR_AGENT_NAME: vps-pm2-01
+      # Optional: poll interval in seconds
+      WGR_POLL_INTERVAL: "60"
+    volumes:
+      # State (agent_id + agent_token + last etag) — persistent
+      - shipper-state:/state
+
+      # Mount host paths that the user might add as sources later.
+      # The shipper doesn't read them until a matching source is declared in the UI,
+      # but the mounts must exist when the source is added (no hot mount).
+      - /home/debian/.pm2/logs:/var/log/pm2:ro
+      - /var/www:/var/www:ro
+      - /var/log/nginx:/var/log/nginx:ro
+      - /run/log/journal:/run/log/journal:ro
+      - /etc/machine-id:/etc/machine-id:ro
+
+volumes:
+  shipper-state:

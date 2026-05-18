@@ -25,7 +25,7 @@ ENV WGR_INGEST_URL=https://<INGEST_DOMAIN>/loki/api/v1/push \
     WGR_CONFIG_PATH=/config/sources.json \
     WGR_RENDERED_PATH=/tmp/config.alloy
 
-VOLUME ["/config"]
+VOLUME ["/config", "/state"]
 
 ENTRYPOINT ["/opt/wgr-logs-shipper/entrypoint.sh"]
 CMD []

@@ -2,9 +2,43 @@
 
 Image Docker qui collecte les logs d'un serveur et les pousse vers wgr-logs. Configuration déclarative via un `sources.json` simple, modules Alloy générés automatiquement.
 
-**Statut** : Phase A (mode static). La phase B ajoutera un mode "managed" qui poll la config depuis l'API wgr-logs.
+**Deux modes** :
+- **Static** : configuration via un `sources.json` local
+- **Managed** : la config est gérée depuis l'API wgr-logs (UI desktop pilote, le shipper poll toutes les 60s)
 
-## Quick start
+## Mode managed (recommandé)
+
+Voir `examples/docker-compose.managed.yml`. En une ligne :
+
+```yaml
+services:
+  shipper:
+    image: ghcr.io/wgr-sa/wgr-logs-shipper:latest
+    environment:
+      WGR_API_URL: https://<LOGS_DOMAIN>/mgmt
+      WGR_INGEST_TOKEN: ${WGR_INGEST_TOKEN}
+      WGR_REGISTER_TOKEN: ${WGR_REGISTER_TOKEN}  # one-time, only needed first boot
+    volumes:
+      - shipper-state:/state   # IMPORTANT : agent_id persisted here
+      - /var/log:/var/log:ro
+      - /var/www:/var/www:ro
+      - /run/log/journal:/run/log/journal:ro
+volumes:
+  shipper-state:
+```
+
+Flow :
+1. Premier boot → POST `/mgmt/agents/register` avec `WGR_REGISTER_TOKEN`
+2. Reçoit `agent_id` + `agent_token` permanent → sauve dans `/state/agent.json`
+3. GET `/mgmt/agents/<id>/config` toutes les 60s
+4. Si ETag changé → regenerate `config.alloy` → `kill -HUP alloy` (reload natif)
+
+Tu pilotes les sources depuis l'app desktop → onglet **Agents** → ajoute/supprime/édit sources → l'agent applique dans la minute.
+
+## Mode static (legacy / sans API)
+
+```bash
+mkdir -p /etc/wgr-logs && cd /etc/wgr-logs
 
 ```bash
 mkdir -p /etc/wgr-logs && cd /etc/wgr-logs
