@@ -1,0 +1,33 @@
+{
+  "name": "@wgr/logs-browser",
+  "version": "0.1.0",
+  "description": "Tiny browser logger that ships errors + custom logs to wgr-logs via the browser collector Worker",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsc -p tsconfig.json --watch",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.4",
+    "vitest": "^2.0.0",
+    "jsdom": "^25.0.0"
+  },
+  "keywords": ["logging", "loki", "browser", "errors", "wgr-logs"]
+}

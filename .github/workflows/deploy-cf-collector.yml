@@ -1,0 +1,39 @@
+name: Deploy wgr-browser-collector
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/wgr-browser-collector/**'
+      - '.github/workflows/deploy-cf-collector.yml'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install deps
+        working-directory: apps/wgr-browser-collector
+        run: npm install --no-audit --no-fund
+
+      - name: Typecheck
+        working-directory: apps/wgr-browser-collector
+        run: npm run typecheck
+
+      - name: Deploy via wrangler
+        uses: cloudflare/wrangler-action@v3
+        with:
+          workingDirectory: apps/wgr-browser-collector
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy

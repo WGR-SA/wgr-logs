@@ -1,0 +1,32 @@
+name = "wgr-browser-collector"
+main = "src/index.ts"
+compatibility_date = "2024-12-01"
+
+# Public Worker — accepts POST /push from browsers.
+# Validates Origin against ALLOWED_ORIGINS, optionally rate-limits via KV.
+
+# Public vars
+[vars]
+WGR_INGEST_URL = "https://<INGEST_DOMAIN>/loki/api/v1/push"
+WGR_INGEST_USER = "wgr"
+# Comma-separated list of allowed origins. Use "*" to accept any (NOT recommended in prod).
+ALLOWED_ORIGINS = "https://yoursite.com,https://www.yoursite.com,https://another.example.com"
+# Comma-separated list of allowed `app` label values. Prevents arbitrary labels.
+ALLOWED_APPS = "yoursite,another-site"
+# Max payload bytes per request (bigger = capped)
+MAX_PAYLOAD_BYTES = "65536"
+# Max logs per batch
+MAX_LOGS_PER_BATCH = "100"
+
+# Secrets:
+#   wrangler secret put WGR_INGEST_TOKEN
+
+# Optional KV namespace for per-IP rate limiting (not required for v1)
+# [[kv_namespaces]]
+# binding = "RATE_LIMIT"
+# id = "<your-kv-id>"
+
+# Custom domain route (optional — by default the worker is served at <name>.<your-account>.workers.dev)
+# [[routes]]
+# pattern = "collector.example.com/*"
+# zone_name = "example.com"

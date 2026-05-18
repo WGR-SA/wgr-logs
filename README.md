@@ -46,8 +46,8 @@ After deploying with your own domains:
 | VPS with Docker | Image `ghcr.io/wgr-sa/wgr-logs-shipper:latest` | [`docs/shipper-docker.md`](docs/shipper-docker.md) |
 | Linux VPS without Docker | `scripts/install-shipper.sh` (curl ∣ bash) | [`docs/shipper-bash.md`](docs/shipper-bash.md) |
 | Shared hosting | `scripts/php-pusher/wgr-logs-push.php` via cron | [`docs/shipper-php.md`](docs/shipper-php.md) |
-| Cloudflare Worker | Tail Worker (phase D, planned) | — |
-| Browser / frontend | `@wgr/logs-browser` lib (phase E, planned) | — |
+| Cloudflare Worker | Tail Worker (`apps/wgr-tail-collector`) | [`docs/cf-workers.md`](docs/cf-workers.md) |
+| Browser / frontend | `@wgr/logs-browser` lib + collector Worker | [`docs/browser-collector.md`](docs/browser-collector.md) |
 
 All shippers (except the PHP cron) support a **managed mode**: they poll the API every 60s. You drive their sources from the desktop UI — no more per-server JSON files to edit.
 

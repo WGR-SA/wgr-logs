@@ -63,39 +63,28 @@ Snapshot of shipped phases + what's planned. Historical detailed plan lives outs
 - `docs/connectors.md` — low-level patterns
 - `SYNC-WORKFLOW.md` — deploy & release
 
-## ⏸ Planned
-
 ### Phase D — Cloudflare Workers (Tail Worker)
 
-**Use case**: collect logs from Cloudflare Workers without an agent (impossible in serverless).
-
-**Planned deliverables**:
-- `apps/wgr-tail-collector/` — dedicated Worker deployed via wrangler
-- `wrangler.toml` with extendable `tail_consumers`
-- `src/index.ts` `tail()` handler forwarding each event to Loki
+- `apps/wgr-tail-collector/` — dedicated Cloudflare Worker deployed via wrangler
+- `wrangler.toml` + `src/index.ts` — `tail()` handler forwarding events to Loki
 - `scripts/cf-tail/add-target.sh` — helper for `wrangler tail-consumer add`
-- Shows up in the UI as `shipper_kind=cf-tail` (without classic last_seen)
 - Auth: `INGEST_AUTH_TOKEN` stored as a wrangler secret
-
-**Estimated effort**: ~3h
+- Doc: `docs/cf-workers.md`
+- CI workflow `deploy-cf-tail.yml`
 
 ### Phase E — Frontend browser
 
-**Use case**: capture production JS errors from browser clients (Nuxt apps, WP themes, Prestashop SPAs).
-
-**Planned deliverables**:
-- `apps/wgr-browser-collector/` — public Cloudflare Worker with Origin allowlist + rate limit
+- `apps/wgr-browser-collector/` — public Cloudflare Worker with Origin allowlist + sanitization
 - `packages/logs-browser/` — npm package `@wgr/logs-browser`:
-  - `initLogger({ collector, app, env, release })` — auto-hook `window.onerror` + `unhandledrejection`
-  - Manual API `logger.error()` / `warn()` / `info()`
-  - Batching 1s + sendBeacon on pagehide
+  - `initLogger({ collector, app, env, release })` — auto-hooks `window.onerror` + `unhandledrejection`
+  - Manual API `logger.error()` / `warn()` / `info()` / `setUser()` / `flush()`
+  - Batching every 2s + sendBeacon on pagehide
   - ~3 KB minified, zero deps
-- `docs/browser-collector.md`
+  - Vitest tests
+- Doc: `docs/browser-collector.md`
 - CI workflow `deploy-cf-collector.yml`
 
-**Optional v2**: source maps (resolve minified stacks), Core Web Vitals (LCP/CLS/INP).
-
-**Estimated effort**: ~4h
+## ⏸ Planned
 
 ### Backlog improvements
 

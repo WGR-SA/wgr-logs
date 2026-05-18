@@ -135,7 +135,7 @@ wrangler deploy
 
 One tail consumer = one source. Or make a generic tail consumer with multiple `tail_consumers` entries.
 
-> Phase D (planned): a turn-key `wgr-tail-collector` Worker in `apps/wgr-tail-collector/`. Until then, the snippet above is what to copy.
+> ✅ For a turn-key solution, see [`cf-workers.md`](cf-workers.md) and the `wgr-tail-collector` Worker in `apps/wgr-tail-collector/`. The snippet above is the underlying pattern.
 
 ---
 
@@ -173,7 +173,7 @@ The token is provided via a signed temporary URL (server-side) or via the update
 
 Dedicated small Worker proxy that accepts CORS and forwards to Loki with validation (rate limit + sampling). Same pattern as #3 but triggered by client-side `fetch()` on `error.window`.
 
-> Phase E (planned): a turn-key `wgr-browser-collector` Worker + `@wgr/logs-browser` JS lib. Until then, the snippet from #3 with browser-side validation is what to start from.
+> ✅ For a turn-key solution, see [`browser-collector.md`](browser-collector.md), the `wgr-browser-collector` Worker, and the `@wgr/logs-browser` JS lib. The snippet from #3 is the underlying pattern.
 
 ---
 
