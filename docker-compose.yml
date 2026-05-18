@@ -105,23 +105,29 @@ services:
     networks:
       - wgr-logs
 
-  alloy:
-    image: grafana/alloy:v1.5.1
-    command:
-      - run
-      - /etc/alloy/config.alloy
-      - --server.http.listen-addr=0.0.0.0:12345
-      - --storage.path=/var/lib/alloy/data
-    volumes:
-      - ./docker/alloy/config.alloy:/etc/alloy/config.alloy:ro
-      - /var/log:/var/log:ro
-      - /run/log/journal:/run/log/journal:ro
-      - /etc/machine-id:/etc/machine-id:ro
-      - alloy-data:/var/lib/alloy/data
-    depends_on:
-      loki:
-        condition: service_healthy
+  # Eat-the-dogfood: the wgr-logs VPS itself is a managed agent,
+  # piloted from the desktop UI like any other server.
+  shipper:
+    image: ghcr.io/wgr-sa/wgr-logs-shipper:latest
     restart: always
+    environment:
+      WGR_API_URL: https://${LOGS_DOMAIN}/mgmt
+      WGR_INGEST_URL: https://${INGEST_DOMAIN}/loki/api/v1/push
+      WGR_INGEST_USER: wgr
+      WGR_INGEST_TOKEN: ${INGEST_AUTH_TOKEN}
+      WGR_REGISTER_TOKEN: ${WGR_API_REGISTER_TOKEN}
+      WGR_AGENT_NAME: wgr-logs-self
+      WGR_POLL_INTERVAL: "60"
+    volumes:
+      - shipper-state:/state
+      - /var/log:/var/log:ro
+      # Map persistent journal (/var/log/journal) into the path the journald module expects.
+      # Fallback to /run/log/journal (volatile) for systems without persistent journals.
+      - /var/log/journal:/run/log/journal:ro
+      - /etc/machine-id:/etc/machine-id:ro
+    depends_on:
+      api:
+        condition: service_healthy
     networks:
       - wgr-logs
 
@@ -205,7 +211,7 @@ volumes:
   traefik-letsencrypt:
   loki-data:
   grafana-data:
-  alloy-data:
+  shipper-state:
   pg-data:
   pg-backups:
 

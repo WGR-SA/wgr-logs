@@ -62,7 +62,11 @@ mkdir -p "$STATE_DIR"
 AGENT_STATE="$STATE_DIR/agent.json"
 ETAG_FILE="$STATE_DIR/last-etag"
 LAST_ETAG=""
-[[ -f "$ETAG_FILE" ]] && LAST_ETAG=$(cat "$ETAG_FILE")
+# Only restore last-etag if RENDERED exists (otherwise we'd think nothing changed
+# while /tmp/config.alloy is empty after a container restart).
+if [[ -f "$ETAG_FILE" && -s "$RENDERED" ]]; then
+  LAST_ETAG=$(cat "$ETAG_FILE")
+fi
 
 # Enrol on first boot
 if [[ ! -f "$AGENT_STATE" ]]; then
@@ -133,8 +137,12 @@ done
 
 # If no sources yet (empty config), write minimal alloy config to keep the daemon alive
 if [[ ! -s "$RENDERED" ]]; then
-  cat > "$RENDERED" <<EOF
-logging { level = "info"  format = "logfmt" }
+  cat > "$RENDERED" <<'EOF'
+logging {
+  level  = "info"
+  format = "logfmt"
+}
+
 loki.write "wgr" {
   endpoint {
     url = sys.env("WGR_INGEST_URL")
