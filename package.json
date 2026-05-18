@@ -1,0 +1,25 @@
+{
+  "name": "wgr-logs",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "build:client": "npm run build -w @wgr/logs-client",
+    "dev:desk": "npm run dev -w @wgr/wgr-logs-desk",
+    "build:desk": "npm run build -w @wgr/wgr-logs-desk",
+    "tauri:dev:desk": "npm run tauri:dev -w @wgr/wgr-logs-desk",
+    "tauri:build:desk": "npm run tauri:build -w @wgr/wgr-logs-desk",
+    "stack:up": "docker compose up -d",
+    "stack:down": "docker compose down",
+    "stack:logs": "docker compose logs -f",
+    "stack:ps": "docker compose ps",
+    "deploy:stack": "bash scripts/deploy.sh"
+  },
+  "devDependencies": {
+    "rimraf": "^5.0.5",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.5.4"
+  }
+}
