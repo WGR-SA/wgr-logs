@@ -1,22 +1,22 @@
-# Shipper Docker
+# Docker shipper
 
-Image Docker `ghcr.io/wgr-sa/wgr-logs-shipper:latest` — fait tourner Alloy sur n'importe quel VPS/serveur avec Docker. Multi-arch (amd64 + arm64).
+Docker image `ghcr.io/wgr-sa/wgr-logs-shipper:latest` — runs Alloy on any VPS/server with Docker. Multi-arch (amd64 + arm64).
 
 ## Modes
 
 | Mode | Trigger | Use case |
 |---|---|---|
-| **Managed** ⭐ | `WGR_API_URL` env défini | Recommandé — config pilotée depuis l'UI desktop |
-| **Static** | `/config/sources.json` mounté + pas de `WGR_API_URL` | Setups simples / debug / mode dégradé |
+| **Managed** ⭐ | `WGR_API_URL` env set | Recommended — config driven from the desktop UI |
+| **Static** | `/config/sources.json` mounted + no `WGR_API_URL` | Simple setups / debug / degraded mode |
 
-## Mode Managed (recommandé)
+## Managed mode (recommended)
 
-Compose ready-to-use : voir `apps/wgr-logs-shipper/examples/docker-compose.managed.yml`.
+Ready-to-use compose: `apps/wgr-logs-shipper/examples/docker-compose.managed.yml`.
 
 ### Setup
 
 ```bash
-# Sur le serveur cible
+# On the target server
 mkdir -p /etc/wgr-logs && cd /etc/wgr-logs
 
 cat > .env <<'EOF'
@@ -36,10 +36,10 @@ services:
       WGR_INGEST_USER: wgr
       WGR_INGEST_TOKEN: ${WGR_INGEST_TOKEN}
       WGR_REGISTER_TOKEN: ${WGR_REGISTER_TOKEN}
-      WGR_AGENT_NAME: vps-pm2-01      # optionnel, hostname par défaut
+      WGR_AGENT_NAME: vps-pm2-01      # optional, defaults to hostname
       WGR_POLL_INTERVAL: "60"
     volumes:
-      - shipper-state:/state          # IMPORTANT: persiste agent_id + agent_token
+      - shipper-state:/state          # IMPORTANT: persists agent_id + agent_token
       - /home/debian/.pm2/logs:/var/log/pm2:ro
       - /var/www:/var/www:ro
       - /var/log/nginx:/var/log/nginx:ro
@@ -54,60 +54,60 @@ docker compose up -d
 docker compose logs -f
 ```
 
-### Premier démarrage
+### First boot
 
-1. Le shipper s'enrôle automatiquement via `POST /mgmt/agents/register`
-2. Reçoit un `agent_id` + `agent_token` permanent → sauve dans `/state/agent.json`
-3. L'agent apparaît dans l'app desktop avec status=pending
-4. Au premier poll de config (60s max), status passe à `active`
-5. À toi d'ajouter des sources dans l'UI desktop → l'agent les applique dans 60s max
+1. The shipper auto-enrolls via `POST /mgmt/agents/register`
+2. Gets a permanent `agent_id` + `agent_token` → saves to `/state/agent.json`
+3. The agent shows up in the desktop app with `status=pending`
+4. After the first config poll (~60s), status → `active`
+5. Add sources via the desktop UI → the agent applies them within 60s
 
-### Flow live
+### Live flow
 
 ```
-toutes les 60s :
+every 60s:
   shipper → GET /mgmt/agents/<id>/config (Bearer agent_token)
              ← ETag + rendered config
   
-  si ETag changé :
-    shipper → render config.alloy depuis les modules
-    shipper → kill -HUP $(pidof alloy)    (reload natif Alloy)
+  if ETag changed:
+    shipper → render config.alloy from modules
+    shipper → kill -HUP $(pidof alloy)    (Alloy native reload)
 ```
 
-### Variables d'env
+### Environment variables
 
 | Var | Required | Default | Notes |
 |---|---|---|---|
-| `WGR_API_URL` | ✓ | — | Présence active le managed mode |
-| `WGR_INGEST_URL` | ✓ | `https://<INGEST_DOMAIN>/loki/api/v1/push` | |
+| `WGR_API_URL` | ✓ | — | Presence triggers managed mode |
+| `WGR_INGEST_URL` | ✓ | — | `https://<INGEST_DOMAIN>/loki/api/v1/push` |
 | `WGR_INGEST_USER` | | `wgr` | BasicAuth username |
-| `WGR_INGEST_TOKEN` | ✓ | — | BasicAuth password (le shipper s'en sert dans Alloy via `loki.write.basic_auth`) |
-| `WGR_REGISTER_TOKEN` | ✓ first boot | — | Plus nécessaire après enrôlement |
-| `WGR_AGENT_NAME` | | hostname | Nom affiché dans l'UI |
-| `WGR_POLL_INTERVAL` | | `60` | Secondes |
-| `WGR_STATE_DIR` | | `/state` | Doit être un volume persistant ! |
-| `WGR_DEBUG` | | `0` | À `1` pour dumper le config.alloy au boot |
+| `WGR_INGEST_TOKEN` | ✓ | — | BasicAuth password (used by Alloy via `loki.write.basic_auth`) |
+| `WGR_REGISTER_TOKEN` | ✓ first boot | — | Not needed after enrolment |
+| `WGR_AGENT_NAME` | | hostname | Display name in the UI |
+| `WGR_POLL_INTERVAL` | | `60` | Seconds |
+| `WGR_STATE_DIR` | | `/state` | Must be a persistent volume! |
+| `WGR_DEBUG` | | `0` | Set to `1` to dump rendered config.alloy at boot |
 
-### Mounts par type de source
+### Mounts per source type
 
-Les sources sont déclarées via l'UI, mais le container doit pouvoir lire les paths concernés. Mount **read-only** les paths que tu prévois d'utiliser :
+Sources are declared via the UI, but the container must be able to read the relevant paths. Mount **read-only** the paths you'll likely use:
 
 | Source | Mount | Notes |
 |---|---|---|
-| `pm2` | `/home/<user>/.pm2/logs:/var/log/pm2:ro` | Le path dans `config.path` doit matcher la destination du mount |
-| `cakephp` | `/var/www:/var/www:ro` | Glob `/var/www/<app>/logs` |
-| `wordpress` | `/var/www:/var/www:ro` | Glob `<site>/wp-content/debug.log` |
-| `prestashop` | `/var/www:/var/www:ro` | Glob `<site>/var/logs/*` |
-| `nginx` | `/var/log/nginx:/var/log/nginx:ro` | Conventionnel |
-| `journald` | `/var/log/journal:/run/log/journal:ro` + `/etc/machine-id:/etc/machine-id:ro` | Sur Debian/Ubuntu avec journal persistant. Si volatile : `/run/log/journal:/run/log/journal:ro`. |
-| `docker` | `/var/run/docker.sock:/var/run/docker.sock:ro` + `/var/lib/docker/containers:/var/lib/docker/containers:ro` | Permet de tailer les containers du même host |
-| `files` | À toi de mounter le path déclaré dans `paths` | |
+| `pm2` | `/home/<user>/.pm2/logs:/var/log/pm2:ro` | `config.path` must match the mount destination |
+| `cakephp` | `/var/www:/var/www:ro` | Globs `/var/www/<app>/logs` |
+| `wordpress` | `/var/www:/var/www:ro` | Globs `<site>/wp-content/debug.log` |
+| `prestashop` | `/var/www:/var/www:ro` | Globs `<site>/var/logs/*` |
+| `nginx` | `/var/log/nginx:/var/log/nginx:ro` | Conventional path |
+| `journald` | `/var/log/journal:/run/log/journal:ro` + `/etc/machine-id:/etc/machine-id:ro` | On Debian/Ubuntu with persistent journal. Volatile: `/run/log/journal:/run/log/journal:ro` |
+| `docker` | `/var/run/docker.sock:/var/run/docker.sock:ro` + `/var/lib/docker/containers:/var/lib/docker/containers:ro` | Tails the host's other containers |
+| `files` | Mount the path declared in `paths` | |
 
-⚠️ Les mounts ne sont **pas hot** — si tu ajoutes un type de source dans l'UI après le démarrage, et que le path n'est pas mounté, l'agent ne pourra pas y accéder. Mount large dès le départ.
+⚠️ Mounts are **not hot** — if you add a source type via the UI after boot and its path isn't mounted, the agent can't access it. Mount broadly upfront.
 
-## Mode Static (sans API)
+## Static mode (no API)
 
-Pour setups simples / debug / sans API joignable.
+For simple setups / debug / when the API is unreachable.
 
 ```yaml
 services:
@@ -115,15 +115,16 @@ services:
     image: ghcr.io/wgr-sa/wgr-logs-shipper:latest
     restart: always
     environment:
+      WGR_INGEST_URL: https://<INGEST_DOMAIN>/loki/api/v1/push
       WGR_INGEST_TOKEN: ${WGR_INGEST_TOKEN}
-      # Pas de WGR_API_URL ↑ → mode static
+      # No WGR_API_URL ↑ → static mode
     volumes:
       - ./sources.json:/config/sources.json:ro
       - /var/log:/var/log:ro
-      # ... mounts par source ...
+      # ... per-source mounts ...
 ```
 
-`sources.json` :
+`sources.json`:
 ```json
 {
   "defaults": { "env": "prod", "host": "vps-pm2-01" },
@@ -134,39 +135,39 @@ services:
 }
 ```
 
-Pas de polling, pas d'enrôlement. Modif du `sources.json` → `docker compose restart shipper`.
+No polling, no enrolment. Edit `sources.json` → `docker compose restart shipper`.
 
-## Intégrer dans un compose existant
+## Integrate into an existing compose
 
-Voir `apps/wgr-logs-shipper/examples/docker-compose.snippet.yml` — bloc à coller dans un compose existant. Le shipper observe les autres containers via le socket Docker, partage les volumes des logs.
+See `apps/wgr-logs-shipper/examples/docker-compose.snippet.yml` — block to paste into an existing compose. The shipper observes other containers via the Docker socket, sharing log volumes.
 
-## Build local (pour itérer)
+## Local build (for iteration)
 
 ```bash
-# Depuis la racine du monorepo
+# From the monorepo root
 docker build -t wgr-logs-shipper:dev -f apps/wgr-logs-shipper/Dockerfile .
 ```
 
-## Désinstaller
+## Uninstall
 
 ```bash
-docker compose down -v   # -v pour aussi virer le volume shipper-state
+docker compose down -v   # -v also removes the shipper-state volume
 ```
 
-L'agent reste dans la DB côté API (status va passer à offline). Pour le retirer définitivement : supprimer via l'UI desktop.
+The agent stays in the API DB (status will turn offline). Remove permanently via the desktop UI.
 
 ## Debug
 
-| Symptôme | Cause probable |
+| Symptom | Likely cause |
 |---|---|
-| Container en restart loop, "unhealthy" | Healthcheck pointe sur un mauvais path. Vérifier `compose ps` + `compose logs shipper` |
-| Pas d'enrôlement, 401 | `WGR_REGISTER_TOKEN` invalide. Régénérer depuis le `.env` du serveur wgr-logs |
-| Enrôlé mais pas de logs dans Loki | Source ajoutée mais path non mounté dans le compose |
-| journald = 0 events | Mount du journal pointe sur le mauvais chemin (volatile vs persistent). Sur Debian/Ubuntu : `/var/log/journal:/run/log/journal:ro` |
-| Reload ne se fait pas | Pas d'erreur visible, juste vérifier `docker logs shipper | grep reload` |
+| Container restart loop, "unhealthy" | Healthcheck targets the wrong path. Check `compose ps` + `compose logs shipper` |
+| Enrolment fails, 401 | Invalid `WGR_REGISTER_TOKEN`. Regenerate from the wgr-logs server `.env` |
+| Enrolled but no logs in Loki | Source added but path not mounted in the compose |
+| journald = 0 events | Wrong journal mount path (volatile vs persistent). On Debian/Ubuntu: `/var/log/journal:/run/log/journal:ro` |
+| Reload doesn't happen | Check `docker logs shipper | grep reload` |
 
-## Voir aussi
+## See also
 
-- [`api.md`](api.md) — référence des endpoints utilisés
-- [`shipper-bash.md`](shipper-bash.md) — alternative sans Docker
-- [`architecture.md`](architecture.md) — schéma complet
+- [`api.md`](api.md) — endpoints used by the shipper
+- [`shipper-bash.md`](shipper-bash.md) — Docker-less alternative
+- [`architecture.md`](architecture.md) — full diagram

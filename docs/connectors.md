@@ -1,39 +1,39 @@
-# Brancher une source à wgr-logs
+# Low-level connectors
 
-> 📖 **Pour la plupart des cas, utilise les shippers de wgr-logs (managed via UI desktop).**
-> Voir : [`shipper-docker.md`](shipper-docker.md) | [`shipper-bash.md`](shipper-bash.md) | [`shipper-php.md`](shipper-php.md)
+> 📖 **For most cases, use the wgr-logs shippers (managed via the desktop UI).**
+> See: [`shipper-docker.md`](shipper-docker.md) | [`shipper-bash.md`](shipper-bash.md) | [`shipper-php.md`](shipper-php.md)
 >
-> Ce document décrit les patterns **bas-niveau** (Docker Loki driver, push HTTP direct, etc.) — utile pour des cas spéciaux où les shippers ne conviennent pas (Cloudflare Workers, app Tauri user-side, browser).
+> This document describes **low-level patterns** (Docker Loki driver, direct HTTP push, etc.) — useful for special cases where the shippers don't fit (Cloudflare Workers, Tauri user-side apps, browser).
 
-Tous les connecteurs poussent sur `https://<INGEST_DOMAIN>/loki/api/v1/push` avec un Bearer token (`INGEST_AUTH_TOKEN`). Le token est partagé pour toutes les sources, distinct du mot de passe Grafana.
+All connectors push to `https://<INGEST_DOMAIN>/loki/api/v1/push` with a shared token (`INGEST_AUTH_TOKEN`). This token is separate from the Grafana admin password.
 
-## Règles de labels
+## Label rules
 
-**Cardinalité faible obligatoire.** Bons labels : `app`, `env`, `host`, `level`, `service`, `cluster`. **JAMAIS** : `user_id`, `request_id`, `trace_id`, `path` complet, `ip` — ils explosent l'index Loki. Mets-les dans la ligne JSON, ils restent grep-ables via LogQL.
+**Low cardinality only.** Good labels: `app`, `env`, `host`, `level`, `service`, `cluster`. **Never**: `user_id`, `request_id`, `trace_id`, full `path`, `ip` — they explode the Loki index. Put them in the JSON line, they remain grep-able via LogQL.
 
 ---
 
-## 1. Apps Docker (driver natif Loki) — le plus simple
+## 1. Docker apps (native Loki driver) — simplest
 
-### Pré-requis (une seule fois sur l'host Docker)
+### Prerequisites (once per Docker host)
 
 ```bash
 docker plugin install grafana/loki-docker-driver:latest --alias loki --grant-all-permissions
 ```
 
-### Dans n'importe quel `docker-compose.yml`
+### In any `docker-compose.yml`
 
 ```yaml
 services:
-  monapp:
-    image: monimage:latest
+  myapp:
+    image: myimage:latest
     logging:
       driver: loki
       options:
         loki-url: "https://<INGEST_DOMAIN>/loki/api/v1/push"
         loki-batch-size: "400"
         loki-retries: "3"
-        loki-external-labels: "app=monapp,env=prod,host={{.Name}}"
+        loki-external-labels: "app=myapp,env=prod,host={{.Name}}"
         loki-pipeline-stages: |
           - json:
               expressions:
@@ -43,75 +43,51 @@ services:
               level:
 ```
 
-Côté app (Nuxt, Strapi, NestJS), log en **JSON sur stdout** (pino, winston, ou `console.log(JSON.stringify({...}))`). Le pipeline ci-dessus extrait `level` automatiquement.
+App-side (Nuxt, Strapi, NestJS), log **JSON to stdout** (pino, winston, or `console.log(JSON.stringify({...}))`). The pipeline above extracts `level` automatically.
 
-### Auth Bearer
+### Bearer auth
 
-Le driver Loki ne supporte pas Bearer nativement, mais accepte BasicAuth. Sur Traefik côté serveur, on convertit BasicAuth → header :
+The Loki driver doesn't support Bearer natively, but accepts BasicAuth. With Traefik on the server side, you can convert BasicAuth → header:
 
 ```yaml
 loki-url: "https://wgr:${INGEST_AUTH_TOKEN}@<INGEST_DOMAIN>/loki/api/v1/push"
 ```
 
-(Voir `docker-compose.yml` racine pour le middleware Traefik `ingest-auth`.)
-
 ---
 
-## 2. Serveur Linux infra (Alloy)
+## 2. Linux server (Alloy)
 
-Sur le VPS lui-même, Alloy tourne dans la stack et lit `/var/log/*` + `/run/log/journal` montés en volume read-only. Rien à faire de plus pour l'host courant.
+On the VPS itself, Alloy runs in the stack and reads `/var/log/*` + `/run/log/journal` mounted as read-only volumes. No additional setup needed.
 
-### Sur un autre serveur (deuxième VPS, etc.)
+### For another server (a second VPS, etc.)
 
-```bash
-# Debian/Ubuntu
-sudo apt install -y wget gpg
-wget -qO - https://apt.grafana.com/gpg.key | sudo gpg --dearmor -o /etc/apt/keyrings/grafana.gpg
-echo "deb [signed-by=/etc/apt/keyrings/grafana.gpg] https://apt.grafana.com stable main" | sudo tee /etc/apt/sources.list.d/grafana.list
-sudo apt update && sudo apt install -y alloy
-```
-
-Puis copier `docker/alloy/config.alloy` vers `/etc/alloy/config.alloy` en remplaçant l'endpoint :
-
-```river
-loki.write "default" {
-  endpoint {
-    url = "https://<INGEST_DOMAIN>/loki/api/v1/push"
-    basic_auth {
-      username = "wgr"
-      password = sys.env("INGEST_AUTH_TOKEN")
-    }
-  }
-}
-```
-
-`sudo systemctl enable --now alloy`
+Use [`shipper-bash.md`](shipper-bash.md). Avoid setting up Alloy manually — the bash installer does it for you with a working config + managed mode.
 
 ---
 
 ## 3. Cloudflare Workers (Tail Worker)
 
-Pas d'agent possible dans un Worker — on relaie via un **Tail Consumer Worker** dédié.
+No agent possible inside a Worker — use a dedicated **Tail Consumer Worker**.
 
-### Worker `cf-worker-logs-tail` (squelette)
+### Worker `cf-worker-logs-tail` (skeleton)
 
-`wrangler.toml` :
+`wrangler.toml`:
 ```toml
 name = "cf-worker-logs-tail"
 main = "src/index.ts"
 compatibility_date = "2024-12-01"
 
 [[tail_consumers]]
-service = "monsite-prod"   # le Worker dont on collecte les logs
+service = "mysite-prod"   # the Worker whose logs we collect
 
 [vars]
 LOKI_URL = "https://<INGEST_DOMAIN>/loki/api/v1/push"
-APP = "monsite"
+APP = "mysite"
 ENV = "prod"
-# INGEST_AUTH_TOKEN ajouté via `wrangler secret put`
+# INGEST_AUTH_TOKEN added via `wrangler secret put`
 ```
 
-`src/index.ts` :
+`src/index.ts`:
 ```ts
 export interface Env {
   LOKI_URL: string
@@ -151,19 +127,21 @@ export default {
 }
 ```
 
-Déploiement :
+Deploy:
 ```bash
 wrangler secret put INGEST_AUTH_TOKEN
 wrangler deploy
 ```
 
-À répéter par Worker source (1 tail consumer = 1 source). Ou rendre le tail consumer générique via `tail_consumers` multiples.
+One tail consumer = one source. Or make a generic tail consumer with multiple `tail_consumers` entries.
+
+> Phase D (planned): a turn-key `wgr-tail-collector` Worker in `apps/wgr-tail-collector/`. Until then, the snippet above is what to copy.
 
 ---
 
-## 4. App Tauri (wgr-clip, wgr-logs-desk en prod)
+## 4. Tauri app (user-side)
 
-Pour collecter les erreurs côté utilisateur (opt-in) :
+To capture client-side errors (opt-in):
 
 ```ts
 // app/utils/remoteLog.ts
@@ -179,7 +157,7 @@ export async function pushLog(level: string, msg: string, ctx: object = {}) {
     },
     body: JSON.stringify({
       streams: [{
-        stream: { app: 'wgr-clip', env: 'prod', level, source: 'desktop' },
+        stream: { app: 'myapp', env: 'prod', level, source: 'desktop' },
         values: [[ts, JSON.stringify({ msg, ...ctx })]]
       }]
     })
@@ -187,25 +165,27 @@ export async function pushLog(level: string, msg: string, ctx: object = {}) {
 }
 ```
 
-Le token est fourni via une URL signée temporaire (côté backend) ou via update server, **jamais en clair dans le bundle**.
+The token is provided via a signed temporary URL (server-side) or via the update server — **never hardcoded in the bundle**.
 
 ---
 
-## 5. Endpoint browser (sites statiques, erreurs JS)
+## 5. Browser endpoint (static sites, JS errors)
 
-Petit Worker proxy dédié qui accepte CORS et forward vers Loki avec validation (rate limit + sample). Pattern proche du #3 mais déclenché par `fetch()` côté navigateur sur `error.window`.
+Dedicated small Worker proxy that accepts CORS and forwards to Loki with validation (rate limit + sampling). Same pattern as #3 but triggered by client-side `fetch()` on `error.window`.
+
+> Phase E (planned): a turn-key `wgr-browser-collector` Worker + `@wgr/logs-browser` JS lib. Until then, the snippet from #3 with browser-side validation is what to start from.
 
 ---
 
-## Vérification rapide
+## Quick verification
 
-Après avoir branché une source, vérifier dans Grafana → Explore :
+After connecting a source, check in Grafana → Explore:
 
 ```logql
-{app="ton-app"} | last 5m
+{app="your-app"} | last 5m
 ```
 
-Si rien n'apparaît, check :
-1. `docker plugin ls` (driver Loki actif)
+If nothing shows up:
+1. `docker plugin ls` (Loki driver active)
 2. `curl -I https://<INGEST_DOMAIN>/ready` (HTTP 200)
-3. `docker logs <ton-service>` (erreurs du driver Loki affichées en stderr)
+3. `docker logs <your-service>` (Loki driver errors are on stderr)

@@ -18,7 +18,7 @@ Typed client for the [Loki HTTP API](https://grafana.com/docs/loki/latest/refere
 import { LokiClient, logql } from '@wgr/logs-client'
 
 const client = new LokiClient({
-  baseUrl: 'https://<INGEST_DOMAIN>',
+  baseUrl: 'https://ingest.example.com',
   basicAuth: { username: 'wgr', password: process.env.INGEST_AUTH_TOKEN! }
 })
 
@@ -41,5 +41,5 @@ const res = await client.queryRange({
 const tailUrl = client.tailUrl(query, { delayFor: 5 })
 
 // Active alerts (from Grafana Alertmanager)
-const alerts = await client.activeAlerts('https://<LOGS_DOMAIN>')
+const alerts = await client.activeAlerts('https://logs.example.com')
 ```

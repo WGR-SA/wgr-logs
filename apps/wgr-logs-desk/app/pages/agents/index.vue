@@ -73,7 +73,7 @@ function isOnline(a: Agent): boolean {
     <div v-if="!settings.adminApiUrl.value || !settings.adminToken.value" class="flex-1 flex items-center justify-center text-neutral-500 text-sm">
       <div class="text-center">
         <UIcon name="i-lucide-key-round" class="size-8 mx-auto mb-2" />
-        <p>Renseigne l'URL admin (<code>https://<LOGS_DOMAIN>/mgmt</code>) et le token admin dans Réglages.</p>
+        <p>Renseigne l'URL admin (<code>https://logs.example.com/mgmt</code>) et le token admin dans Réglages.</p>
         <UButton class="mt-3" to="/settings" size="sm">Ouvrir Réglages</UButton>
       </div>
     </div>

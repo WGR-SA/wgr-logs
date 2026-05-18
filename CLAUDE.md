@@ -1,61 +1,61 @@
-# wgr-logs — guide projet
+# wgr-logs — project guide
 
-Stack d'observabilité auto-hébergée WGR : **Loki + Grafana + Alloy + Postgres + API NestJS** sur S3 Infomaniak, avec un desktop **Nuxt 4 + Tauri 2** (`apps/wgr-logs-desk`) pour piloter les agents, et 3 shippers (Docker, bash, PHP cron) pour collecter les logs partout.
+Self-hosted observability stack: **Loki + Grafana + Alloy + Postgres + NestJS API** on S3-compatible storage. Driven from a **Nuxt 4 + Tauri 2** desktop app (`apps/wgr-logs-desk`), with 3 shippers (Docker, bash, PHP cron) to collect logs from anywhere.
 
-> Pour la vue d'ensemble complète : voir [`docs/architecture.md`](docs/architecture.md).
+> Full picture: see [`docs/architecture.md`](docs/architecture.md).
 
 ## Architecture
 
-- **Standalone** : reverse proxy Traefik dédié, deploy SSH autonome (n'utilise pas l'infra de `wgr-docker-admin`).
-- **Domaines** : `<LOGS_DOMAIN>` (Grafana UI + `/mgmt/*` pour l'API) et `<INGEST_DOMAIN>` (push Loki).
-- **Stockage** : Infomaniak Swiss Backup S3 — souveraineté CH.
-- **Alerting** : Grafana Alerting → Slack webhook + notifications natives Tauri (opt-in).
-- **Agents managés** : NestJS API + Postgres exposent `/mgmt/*` pour piloter les shippers depuis l'UI.
+- **Standalone** — own Traefik, own SSH deploy. Doesn't depend on other infra.
+- **Domains** — `<LOGS_DOMAIN>` (Grafana UI + `/mgmt/*` for the API) and `<INGEST_DOMAIN>` (Loki push).
+- **Storage** — S3-compatible buckets for Loki chunks + ruler (e.g. Infomaniak Swiss Backup for CH sovereignty).
+- **Alerting** — Grafana Alerting → Slack webhook + native Tauri notifications (opt-in).
+- **Managed agents** — NestJS API + Postgres expose `/mgmt/*` to drive shippers from the UI.
 
 ## Conventions
 
-- **npm workspaces** (pas pnpm/yarn).
-- **TypeScript strict**, pas de `any` injustifié, pas d'eslint-warning toléré.
-- **UI en français** (clients suisses francophones), **code/identifiers en anglais**.
-- **Comments rares** : seulement le *why*, pas le *what*. Pas de docstring multi-paragraphe.
-- **Pas de code défensif** aux boundaries internes (lib ↔ app). Validation seulement aux frontières externes (HTTP, env, fichiers).
-- **NestJS pattern** : entities TypeORM déclarées explicitement dans `database.config.ts` (pas d'auto-discovery), DTOs avec class-validator, ClassSerializerInterceptor + `@Exclude()` pour empêcher les leaks (cf. `tokenHash`).
-- **Identifier Tauri** : `ch.wgr.logs`. Updater via GitHub releases `latest.json`.
-- **Nuxt + Tauri** : SSR enabled en dev (sinon vite-node IPC bug), `nitro.preset: 'static'` + `routeRules: { '/': { prerender: true } }` pour la build. Port dev **1421** (collide-free, le 1420 est pour wgr-clip).
+- **npm workspaces** (not pnpm/yarn).
+- **TypeScript strict**. No unjustified `any`, no eslint warnings tolerated.
+- **UI in French** (Swiss French clients), **code/identifiers in English**.
+- **Rare comments** — explain *why*, not *what*. No multi-paragraph docstrings.
+- **No defensive code** at internal boundaries (lib ↔ app). Validate only at external boundaries (HTTP, env, files).
+- **NestJS pattern** — TypeORM entities explicitly listed in `database.config.ts` (no auto-discovery), DTOs with class-validator, `ClassSerializerInterceptor` + `@Exclude()` to prevent leaks (cf. `tokenHash`).
+- **Tauri identifier** — `ch.wgr.logs`. Updater via GitHub Releases `latest.json`.
+- **Nuxt + Tauri** — SSR enabled in dev (otherwise vite-node IPC bug), `nitro.preset: 'static'` + `routeRules: { '/': { prerender: true } }` for the build. Dev port **1421**.
 
 ## Gotchas
 
-- **Tauri capabilities** (`src-tauri/capabilities/*.json`) : tout changement de permission impose un rebuild Rust complet.
-- **Nuxt UI v4 + Tailwind v4** : palette via `@theme` dans `app/assets/css/main.css` (pas de `tailwind.config.ts`).
-- **Loki labels** : peu cardinaux uniquement (app, env, host, level). JAMAIS user_id, request_id, trace_id en label — ils vont dans la ligne JSON.
-- **Tokens distincts** : `INGEST_AUTH_TOKEN` (Loki push), `WGR_API_ADMIN_TOKEN` (UI desktop), `WGR_API_REGISTER_TOKEN` (enrôlement). Ne pas mélanger.
-- **API path-based, pas subdomain** : `/mgmt/*` sur `<LOGS_DOMAIN>` (le subdomain `<API_DOMAIN>` est pris par un autre service). Le router Traefik avec `Host && PathPrefix(/mgmt)` gagne la priorité automatiquement sur le `Host()` seul de Grafana.
-- **Docker healthcheck path doit matcher l'app** : si le globalPrefix Nest change (`/api` → `/mgmt`), updater aussi la `healthcheck.test` du compose, sinon Traefik filter le container comme unhealthy et le route nulle part.
-- **Journal Debian persistant** : `/var/log/journal/`, pas `/run/log/journal/`. Mount à adapter en `:/run/log/journal:ro` côté container.
-- **ETag-based reload** : les shippers comparent l'ETag local (dans `/state/last-etag`) avec celui retourné par l'API. Si `RENDERED` file est éphémère (Docker `/tmp/config.alloy`), ne PAS restaurer l'ETag depuis state si le RENDERED n'existe pas, sinon faux-négatif "rien à reload".
+- **Tauri capabilities** (`src-tauri/capabilities/*.json`) — any permission change forces a full Rust rebuild.
+- **Nuxt UI v4 + Tailwind v4** — palette via `@theme` in `app/assets/css/main.css` (no `tailwind.config.ts`).
+- **Loki labels** — low cardinality only (app, env, host, level). NEVER user_id, request_id, trace_id as labels — put them in the JSON line.
+- **Three distinct tokens** — `INGEST_AUTH_TOKEN` (Loki push), `WGR_API_ADMIN_TOKEN` (desktop UI), `WGR_API_REGISTER_TOKEN` (enrolment). Don't mix.
+- **Path-based API, no subdomain** — `/mgmt/*` on `<LOGS_DOMAIN>`. Traefik router rule `Host && PathPrefix(/mgmt)` automatically wins priority over Grafana's `Host()`-only rule.
+- **Docker healthcheck path must match app** — when the Nest global prefix changes (`/api` → `/mgmt`), also update the `healthcheck.test` in compose, otherwise Traefik filters the container as unhealthy and routes nowhere.
+- **Debian persistent journal** — `/var/log/journal/`, not `/run/log/journal/`. Adapt the mount to `:/run/log/journal:ro` inside the container.
+- **ETag-based reload** — shippers compare the local ETag (in `/state/last-etag`) with the API's. If the `RENDERED` file is ephemeral (Docker `/tmp/config.alloy`), DO NOT restore the ETag from state when `RENDERED` doesn't exist — false negative "nothing to reload".
 
 ## Workflows
 
-- `npm run stack:up` — démarre le compose local.
-- `npm run dev:desk` — Nuxt seul (port 1421).
-- `npm run tauri:dev:desk` — desktop en dev.
-- `npm run deploy:stack` — push compose sur prod via SSH.
-- Brancher un nouveau serveur :
-  - Docker : `examples/docker-compose.managed.yml` du shipper
-  - Linux : `curl install-shipper.sh | sudo bash -s -- --api-url ... --register-token ... --ingest-token ... --name ...`
-  - Mutu : `wgr-logs-push.php` + cron
+- `npm run stack:up` — start the compose locally.
+- `npm run dev:desk` — Nuxt only (port 1421).
+- `npm run tauri:dev:desk` — desktop dev.
+- `npm run deploy:stack` — push compose to prod via SSH.
+- Connect a new server:
+  - Docker: `examples/docker-compose.managed.yml` from the shipper
+  - Linux: `curl install-shipper.sh | sudo bash -s -- --api-url ... --register-token ... --ingest-token ... --name ...`
+  - Shared hosting: `wgr-logs-push.php` + cron
 
-## Sécurité
+## Security
 
-- `.env` jamais commité (cf. `.gitignore`)
-- `agent_token` stocké en bcrypt dans pg, jamais leak via l'API (cf. `@Exclude()` sur `Agent.tokenHash`)
-- Repo public (le code n'a pas de secret). Images Docker publiques sur ghcr.
+- `.env` never committed (`.gitignore`)
+- `agent_token` bcrypt-hashed in Postgres, never leaked via the API (`@Exclude()` on `Agent.tokenHash`)
+- Repo public (the code has no secrets). Docker images public on ghcr.
 
-## Scope MVP (volontaire)
+## MVP scope (intentional)
 
-- Logs uniquement. Pas de métriques (Prom/Mimir) ni traces (Tempo) pour démarrer.
-- Auth Grafana : BasicAuth Traefik (SSO/Authentik plus tard si besoin).
-- Auth API : single admin token + per-agent tokens (pas de RBAC multi-user pour démarrer).
-- Pas de mobile/web app : le desktop Tauri suffit.
+- Logs only. No metrics (Prom/Mimir) nor traces (Tempo) for now.
+- Grafana auth: BasicAuth via Traefik (SSO/Authentik later if needed).
+- API auth: single admin token + per-agent tokens (no multi-user RBAC for now).
+- No mobile/web app — the Tauri desktop is enough.
 
-Pour le détail des phases livrées + reste à faire : voir [`docs/ROADMAP.md`](docs/ROADMAP.md).
+For shipped phases + planned: see [`docs/ROADMAP.md`](docs/ROADMAP.md).

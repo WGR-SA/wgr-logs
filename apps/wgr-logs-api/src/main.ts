@@ -14,8 +14,8 @@ async function bootstrap() {
   // Honor @Exclude() on entity fields (e.g. Agent.tokenHash never leaves the API).
   app.useGlobalInterceptors(new ClassSerializerInterceptor(app.get(Reflector)))
 
-  // /mgmt prefix — coexists with Grafana on <LOGS_DOMAIN>.
-  // Routes: https://<LOGS_DOMAIN>/mgmt/agents/..., /source-types, /health
+  // /mgmt prefix — coexists with Grafana on logs.example.com.
+  // Routes: https://logs.example.com/mgmt/agents/..., /source-types, /health
   app.setGlobalPrefix('mgmt')
 
   const port = Number(process.env.API_PORT ?? 3000)

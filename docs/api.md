@@ -1,6 +1,6 @@
 # API reference — `wgr-logs-api`
 
-Référence des endpoints du service NestJS exposé sur `https://<LOGS_DOMAIN>/mgmt`.
+Référence des endpoints du service NestJS exposé sur `https://logs.example.com/mgmt`.
 
 ## Auth
 
@@ -227,7 +227,7 @@ Auth = Bearer `agent_token`. Pour les shippers qui n'appellent pas `/config` (ra
 
 ```bash
 curl -s -H "Authorization: Bearer $ADMIN" \
-  https://<LOGS_DOMAIN>/mgmt/agents | jq .
+  https://logs.example.com/mgmt/agents | jq .
 ```
 
 ### Ajouter une source PM2
@@ -235,7 +235,7 @@ curl -s -H "Authorization: Bearer $ADMIN" \
 ```bash
 curl -X POST -H "Authorization: Bearer $ADMIN" -H "Content-Type: application/json" \
   -d '{"type":"pm2","config":{"path":"/home/debian/.pm2/logs"}}' \
-  https://<LOGS_DOMAIN>/mgmt/agents/$AGENT_ID/sources
+  https://logs.example.com/mgmt/agents/$AGENT_ID/sources
 ```
 
 ### Forcer un reload (admin)
@@ -248,7 +248,7 @@ Pas de endpoint dédié pour ça. Le shipper poll toutes les 60s. Pour forcer im
 
 ```bash
 curl -X PUT -H "Authorization: Bearer $ADMIN" -H "Content-Type: application/json" \
-  -d '{"status":"disabled"}' https://<LOGS_DOMAIN>/mgmt/agents/$AGENT_ID
+  -d '{"status":"disabled"}' https://logs.example.com/mgmt/agents/$AGENT_ID
 ```
 
 Le shipper continuera de poll mais on peut filtrer côté UI. Pour stopper complètement, il faut désinstaller le shipper côté serveur.

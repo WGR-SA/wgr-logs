@@ -1,10 +1,10 @@
 import { LazyStore } from '@tauri-apps/plugin-store'
 
 interface Settings {
-  endpoint: string          // e.g. https://<INGEST_DOMAIN>
-  grafanaUrl: string        // e.g. https://<LOGS_DOMAIN>
+  endpoint: string          // e.g. https://ingest.example.com
+  grafanaUrl: string        // e.g. https://logs.example.com
   token: string             // INGEST_AUTH_TOKEN
-  adminApiUrl: string       // e.g. https://<LOGS_DOMAIN>/mgmt
+  adminApiUrl: string       // e.g. https://logs.example.com/mgmt
   adminToken: string        // WGR_API_ADMIN_TOKEN
   notifyOnFiring: boolean
 }

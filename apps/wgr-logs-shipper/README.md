@@ -1,14 +1,15 @@
 # wgr-logs-shipper
 
-Image Docker qui collecte les logs d'un serveur et les pousse vers wgr-logs. Configuration déclarative via un `sources.json` simple, modules Alloy générés automatiquement.
+Docker image that collects logs from a server and ships them to a wgr-logs stack. Two modes:
 
-**Deux modes** :
-- **Static** : configuration via un `sources.json` local
-- **Managed** : la config est gérée depuis l'API wgr-logs (UI desktop pilote, le shipper poll toutes les 60s)
+- **Static** — config via a local `sources.json` file
+- **Managed** — config fetched from the wgr-logs API (driven by the desktop UI, polled every 60s)
 
-## Mode managed (recommandé)
+See [`../../docs/shipper-docker.md`](../../docs/shipper-docker.md) for the full guide.
 
-Voir `examples/docker-compose.managed.yml`. En une ligne :
+## Managed mode (recommended)
+
+See `examples/docker-compose.managed.yml`. In a nutshell:
 
 ```yaml
 services:
@@ -16,10 +17,11 @@ services:
     image: ghcr.io/wgr-sa/wgr-logs-shipper:latest
     environment:
       WGR_API_URL: https://<LOGS_DOMAIN>/mgmt
+      WGR_INGEST_URL: https://<INGEST_DOMAIN>/loki/api/v1/push
       WGR_INGEST_TOKEN: ${WGR_INGEST_TOKEN}
-      WGR_REGISTER_TOKEN: ${WGR_REGISTER_TOKEN}  # one-time, only needed first boot
+      WGR_REGISTER_TOKEN: ${WGR_REGISTER_TOKEN}  # one-time, first boot only
     volumes:
-      - shipper-state:/state   # IMPORTANT : agent_id persisted here
+      - shipper-state:/state   # IMPORTANT: persists agent_id
       - /var/log:/var/log:ro
       - /var/www:/var/www:ro
       - /run/log/journal:/run/log/journal:ro
@@ -27,23 +29,20 @@ volumes:
   shipper-state:
 ```
 
-Flow :
-1. Premier boot → POST `/mgmt/agents/register` avec `WGR_REGISTER_TOKEN`
-2. Reçoit `agent_id` + `agent_token` permanent → sauve dans `/state/agent.json`
-3. GET `/mgmt/agents/<id>/config` toutes les 60s
-4. Si ETag changé → regenerate `config.alloy` → `kill -HUP alloy` (reload natif)
+Flow:
+1. First boot → `POST /mgmt/agents/register` with `WGR_REGISTER_TOKEN`
+2. Receives permanent `agent_id` + `agent_token` → saves to `/state/agent.json`
+3. `GET /mgmt/agents/<id>/config` every 60s
+4. If ETag changed → regenerate `config.alloy` → `kill -HUP alloy` (native reload)
 
-Tu pilotes les sources depuis l'app desktop → onglet **Agents** → ajoute/supprime/édit sources → l'agent applique dans la minute.
+Manage sources via the desktop app → **Agents** tab → add/remove/edit sources → the agent applies within the minute.
 
-## Mode static (legacy / sans API)
-
-```bash
-mkdir -p /etc/wgr-logs && cd /etc/wgr-logs
+## Static mode (no API)
 
 ```bash
 mkdir -p /etc/wgr-logs && cd /etc/wgr-logs
 
-# 1. Créer la config
+# 1. Create config
 cat > sources.json <<'EOF'
 {
   "defaults": { "env": "prod", "host": "vps-pm2-01" },
@@ -62,6 +61,7 @@ services:
     image: ghcr.io/wgr-sa/wgr-logs-shipper:latest
     restart: always
     environment:
+      WGR_INGEST_URL: https://<INGEST_DOMAIN>/loki/api/v1/push
       WGR_INGEST_TOKEN: ${WGR_INGEST_TOKEN}
     volumes:
       - ./sources.json:/config/sources.json:ro
@@ -72,21 +72,21 @@ services:
 EOF
 
 # 3. Token
-echo "WGR_INGEST_TOKEN=<le_token>" > .env
+echo "WGR_INGEST_TOKEN=<the_token>" > .env
 
 # 4. Up
 docker compose up -d
 docker compose logs -f
 ```
 
-## Schema `sources.json`
+## `sources.json` schema
 
 ```jsonc
 {
   "defaults": {
-    "env": "prod",                    // prod | staging | dev
-    "cluster": "wgr-prod",            // tag global
-    "host": "vps-name"                // override hostname auto
+    "env": "prod",                // prod | staging | dev
+    "cluster": "prod",            // global tag
+    "host": "vps-name"            // override hostname auto-detect
   },
   "sources": [
     { "type": "pm2",        "path": "/var/log/pm2" },
@@ -105,46 +105,46 @@ docker compose logs -f
 }
 ```
 
-Chaque source peut surcharger `env` et `host` individuellement (utile si un même shipper agrège plusieurs environnements). Voir `packages/alloy-modules/schemas/source-types.json` pour le JSON schema complet.
+Each source can override `env` and `host` individually. See `packages/alloy-modules/schemas/source-types.json` for the full JSON schema.
 
-## Variables d'environnement
+## Environment variables
 
-| Var | Required | Default | Rôle |
+| Var | Required | Default | Purpose |
 |---|---|---|---|
-| `WGR_INGEST_TOKEN` | ✅ | — | BasicAuth password pour <INGEST_DOMAIN> |
-| `WGR_INGEST_URL` | | `https://<INGEST_DOMAIN>/loki/api/v1/push` | URL Loki |
+| `WGR_INGEST_TOKEN` | ✅ | — | BasicAuth password for the Loki push endpoint |
+| `WGR_INGEST_URL` | ✓ | — | Loki push URL |
 | `WGR_INGEST_USER` | | `wgr` | BasicAuth username |
-| `WGR_CONFIG_PATH` | | `/config/sources.json` | Path mount |
-| `WGR_DEBUG` | | `0` | Mettre à `1` pour dump le config.alloy rendu |
+| `WGR_CONFIG_PATH` | | `/config/sources.json` | Mount path |
+| `WGR_DEBUG` | | `0` | Set to `1` to dump the rendered config.alloy |
 
-## Mounts requis par type de source
+## Mounts per source type
 
-| Source | Mount obligatoire | Note |
+| Source | Mount | Notes |
 |---|---|---|
-| `pm2` | `<host_pm2_logs>:<path>:ro` | Le path doit matcher `sources[].path` |
-| `cakephp` / `wordpress` / `prestashop` | `<host_base_dir>:<base_dir>:ro` | Doit matcher `sources[].base_dir` |
+| `pm2` | `<host_pm2_logs>:<path>:ro` | The `sources[].path` must match the mount destination |
+| `cakephp` / `wordpress` / `prestashop` | `<host_base_dir>:<base_dir>:ro` | Must match `sources[].base_dir` |
 | `nginx` | `/var/log/nginx:/var/log/nginx:ro` | |
 | `journald` | `/run/log/journal:/run/log/journal:ro` + `/etc/machine-id:/etc/machine-id:ro` | |
 | `docker` | `/var/run/docker.sock:/var/run/docker.sock:ro` + `/var/lib/docker/containers:/var/lib/docker/containers:ro` | |
-| `files` | un mount par path déclaré (read-only) | |
+| `files` | One mount per declared path (read-only) | |
 
-## Build local
+## Local build
 
 ```bash
-# Depuis le monorepo root
+# From the monorepo root
 docker build -t wgr-logs-shipper:dev -f apps/wgr-logs-shipper/Dockerfile .
 ```
 
 ## Debug
 
 ```bash
-# Voir la config Alloy générée
+# Inspect the rendered Alloy config
 docker compose run --rm -e WGR_DEBUG=1 shipper
 
-# Tail logs du shipper
+# Tail shipper logs
 docker compose logs -f shipper
 ```
 
-## Intégration dans un compose existant
+## Drop-in for an existing compose
 
-Voir `examples/docker-compose.snippet.yml` pour le bloc à coller dans un compose existant sans rien casser. Le shipper partage le réseau avec les autres services (option), lit les logs via les volumes des autres services.
+See `examples/docker-compose.snippet.yml` for a block to paste into an existing compose without breaking anything. The shipper shares the network with other services (optional) and reads their log volumes.

@@ -1,113 +1,114 @@
-# Roadmap wgr-logs
+# wgr-logs roadmap
 
-Snapshot du plan exécuté + reste à faire. Pour le plan détaillé historique, voir [`fancy-imagining-mountain.md`](#) (hors repo, dans les plans Claude).
+Snapshot of shipped phases + what's planned. Historical detailed plan lives outside the repo (in the user's private agent plans).
 
-## ✅ Livré
+## ✅ Shipped
 
-### Phase 1 — Foundation (stack VPS)
+### Phase 1 — Stack foundation
 
-- Loki + Grafana + Alloy + Traefik sur Infomaniak Swiss Backup S3
-- Domaines `<LOGS_DOMAIN>` (Grafana) + `<INGEST_DOMAIN>` (Loki push) + `<LOGS_DOMAIN>/mgmt` (API)
-- TLS Let's Encrypt auto
-- Provisioning Grafana : datasource Loki, alerting rules, contact point Slack, dashboard "Vue d'ensemble"
-- Backup S3 souverain CH
+- Loki + Grafana + Alloy + Traefik on S3-compatible object storage
+- Domains: `LOGS_DOMAIN` (Grafana) + `INGEST_DOMAIN` (Loki push) + `LOGS_DOMAIN/mgmt` (API)
+- Auto TLS via Let's Encrypt
+- Grafana provisioning: Loki datasource, alerting rules, Slack contact point, overview dashboard
+- Sovereign S3 backup
 
-### Phase 2 — Lib TS + Tauri desktop
+### Phase 2 — TS lib + Tauri desktop
 
-- `packages/logs-client` — client TS typé pour Loki HTTP API + LogQL builder
-- `apps/wgr-logs-desk` — Nuxt 4 + Tauri 2 :
-  - Dashboard (stats + chart SVG stacked area + top apps + erreurs récentes)
-  - Live tail (WebSocket Loki)
-  - Search (LogQL avec time window)
-  - Alerts (poll Grafana Alertmanager + notifications natives macOS)
-  - Settings (persisté via `@tauri-apps/plugin-store`)
+- `packages/logs-client` — typed TS client for Loki HTTP API + LogQL builder
+- `apps/wgr-logs-desk` — Nuxt 4 + Tauri 2:
+  - Dashboard (stats + stacked area SVG + top apps + recent errors)
+  - Live tail (Loki WebSocket)
+  - Search (LogQL + time window)
+  - Alerts (poll Grafana Alertmanager + native OS notifications)
+  - Settings (persisted via `@tauri-apps/plugin-store`)
 
 ### Phase A — Shippers
 
-- `packages/alloy-modules` — 9 modules Alloy paramétrables (pm2, cakephp, wordpress, prestashop, nginx, journald, docker, files + _header)
-- `apps/wgr-logs-shipper` — image Docker (managed + static), publiée sur `ghcr.io/wgr-sa/wgr-logs-shipper:latest` multi-arch
-- `scripts/install-shipper.sh` — bash installer self-contained avec modules embarqués (curl ∣ bash)
-- `scripts/php-pusher/wgr-logs-push.php` — PHP cron pour mutu Infomaniak
-- CI multi-arch via GitHub Actions
+- `packages/alloy-modules` — 9 parameterised Alloy modules (pm2, cakephp, wordpress, prestashop, nginx, journald, docker, files + _header)
+- `apps/wgr-logs-shipper` — Docker image (managed + static), multi-arch `ghcr.io/wgr-sa/wgr-logs-shipper:latest`
+- `scripts/install-shipper.sh` — self-contained bash installer with embedded modules (curl ∣ bash)
+- `scripts/php-pusher/wgr-logs-push.php` — PHP cron for shared hosting
+- Multi-arch CI via GitHub Actions
 
-### Phase B — API + UI managed
+### Phase B — API + managed UI
 
-- `apps/wgr-logs-api` — NestJS 10 + TypeORM + Postgres :
-  - `POST /mgmt/agents/register` — enrôlement shipper
-  - `GET /mgmt/agents` / `:id` / CRUD admin
-  - `GET /mgmt/agents/:id/config` — polling shipper (renvoie ETag + rendered)
+- `apps/wgr-logs-api` — NestJS 10 + TypeORM + Postgres:
+  - `POST /mgmt/agents/register` — shipper enrollment
+  - `GET /mgmt/agents` / `:id` / admin CRUD
+  - `GET /mgmt/agents/:id/config` — shipper polling (returns ETag + rendered)
   - `POST /mgmt/agents/:id/heartbeat`
   - CRUD `/mgmt/agents/:agentId/sources`
-  - `GET /mgmt/source-types` — catalogue JSON schema
+  - `GET /mgmt/source-types` — JSON schema catalog
   - `GET /mgmt/health`
-- Auth : 3 rôles (admin / agent / register), Bearer tokens, bcrypt hash
-- Compose étendu : `pg` + `api` + `pg-backup` (daily, retention 7d/4w/3m)
-- Image `ghcr.io/wgr-sa/wgr-logs-api:latest` publiée
-- UI desktop : pages `/agents` + `/agents/[id]` + composant `SourceForm` dynamique (généré depuis JSON schema)
-- Shipper Docker en mode managed : poll API + reload Alloy via SIGHUP
+- Auth: 3 roles (admin / agent / register), Bearer tokens, bcrypt hash
+- Extended compose: `pg` + `api` + `pg-backup` (daily, 7d/4w/3m retention)
+- Image `ghcr.io/wgr-sa/wgr-logs-api:latest` published
+- Desktop UI: `/agents` + `/agents/[id]` pages + dynamic `SourceForm` (generated from JSON schemas)
+- Docker shipper in managed mode: poll API + reload Alloy via SIGHUP
 
 ### Phase C — Dogfood
 
-- Le VPS wgr-logs lui-même devient un agent géré (`shipper` dans le compose racine)
-- Sources `journald` + `nginx` du host visibles dans l'UI
-- Validation end-to-end du flow managed sur la prod
+- The wgr-logs VPS itself is now a managed agent (`shipper` service in the root compose)
+- Sources `journald` + `nginx` from the host visible in the UI
+- End-to-end validation of the managed flow in production
 
-### Docs
+### Documentation
 
 - `README.md` — overview
-- `docs/architecture.md` — schémas + flows + décisions
-- `docs/api.md` — référence endpoints
-- `docs/shipper-docker.md` / `shipper-bash.md` / `shipper-php.md` — guides par profil
+- `SETUP.md` — deploy your own instance
+- `docs/architecture.md` — diagrams + flows + design decisions
+- `docs/api.md` — endpoints reference
+- `docs/shipper-docker.md` / `shipper-bash.md` / `shipper-php.md` — per-profile guides
 - `docs/runbook.md` — incidents
-- `docs/connectors.md` (legacy, pointers vers les nouveaux docs)
-- `SYNC-WORKFLOW.md` — déploiement & release
+- `docs/connectors.md` — low-level patterns
+- `SYNC-WORKFLOW.md` — deploy & release
 
-## ⏸ À faire
+## ⏸ Planned
 
 ### Phase D — Cloudflare Workers (Tail Worker)
 
-**Use case** : récupérer les logs des Workers WGR (`cf-worker-intl`, `cf-worker-queue`, etc.) sans poser d'agent.
+**Use case**: collect logs from Cloudflare Workers without an agent (impossible in serverless).
 
-**Livrables prévus** :
-- `apps/wgr-tail-collector/` — Worker dédié déployé via wrangler
-- `wrangler.toml` avec `tail_consumers` étendable
-- `src/index.ts` handler `tail()` qui forward chaque event vers Loki
-- `scripts/cf-tail/add-target.sh` — helper `wrangler tail-consumer add`
-- Apparaît dans l'UI avec `shipper_kind=cf-tail` (sans last_seen classique)
-- Auth : `INGEST_AUTH_TOKEN` en wrangler secret
+**Planned deliverables**:
+- `apps/wgr-tail-collector/` — dedicated Worker deployed via wrangler
+- `wrangler.toml` with extendable `tail_consumers`
+- `src/index.ts` `tail()` handler forwarding each event to Loki
+- `scripts/cf-tail/add-target.sh` — helper for `wrangler tail-consumer add`
+- Shows up in the UI as `shipper_kind=cf-tail` (without classic last_seen)
+- Auth: `INGEST_AUTH_TOKEN` stored as a wrangler secret
 
-**Effort estimé** : ~3h
+**Estimated effort**: ~3h
 
 ### Phase E — Frontend browser
 
-**Use case** : remonter les erreurs JS prod (apps Nuxt en prod, thèmes WP, SPA prestashop) côté navigateur.
+**Use case**: capture production JS errors from browser clients (Nuxt apps, WP themes, Prestashop SPAs).
 
-**Livrables prévus** :
-- `apps/wgr-browser-collector/` — Worker public Cloudflare avec Origin whitelist + rate limit
-- `packages/logs-browser/` — lib npm `@wgr/logs-browser` :
+**Planned deliverables**:
+- `apps/wgr-browser-collector/` — public Cloudflare Worker with Origin allowlist + rate limit
+- `packages/logs-browser/` — npm package `@wgr/logs-browser`:
   - `initLogger({ collector, app, env, release })` — auto-hook `window.onerror` + `unhandledrejection`
-  - API manuelle `logger.error()` / `warn()` / `info()`
-  - Batching 1s + sendBeacon sur pagehide
+  - Manual API `logger.error()` / `warn()` / `info()`
+  - Batching 1s + sendBeacon on pagehide
   - ~3 KB minified, zero deps
 - `docs/browser-collector.md`
-- Workflow CI `deploy-cf-collector.yml`
+- CI workflow `deploy-cf-collector.yml`
 
-**Optionnel v2** : source maps (resolve stacks minifiés), Core Web Vitals (LCP/CLS/INP).
+**Optional v2**: source maps (resolve minified stacks), Core Web Vitals (LCP/CLS/INP).
 
-**Effort estimé** : ~4h
+**Estimated effort**: ~4h
 
-### Améliorations en backlog
+### Backlog improvements
 
-- **Migrations TypeORM** explicites au lieu de `synchronize: true`
-- **SSO/Authentik** sur Grafana (BasicAuth pour démarrer)
-- **Multi-admin** : remplacer le single admin_token par OAuth + RBAC
-- **Audit log** riche (qui a modifié quel agent/source quand)
-- **Bash installer auto-update** : `wgr-shipper-poll` détecte une nouvelle version + replace lui-même
-- **Mobile / web UI** : sortir les pages Vue en Nuxt SSR séparé si besoin
-- **Discovery auto** : labels Docker → auto-création de sources de type `docker` par container
+- **Explicit TypeORM migrations** instead of `synchronize: true`
+- **SSO/Authentik** on Grafana (BasicAuth for now)
+- **Multi-admin**: replace the single admin_token with OAuth + RBAC
+- **Rich audit log** (who modified what, when)
+- **Bash installer self-update**: `wgr-shipper-poll` detects a new version and replaces itself
+- **Mobile/web UI**: extract Vue pages into a separate Nuxt SSR if needed
+- **Docker autodiscovery**: container labels → auto-create `docker`-type sources
 
-## Décisions différées (volontaire)
+## Deferred decisions (intentional)
 
-- **HA / replication** : pg single-instance suffit pour des centaines d'agents. Streaming replication si besoin futur.
-- **Métriques (Prometheus)** : hors scope. Alloy supporte mais pas nécessaire pour ce stack.
-- **Traces (Tempo)** : hors scope.
+- **HA / replication**: pg single-instance is enough for hundreds of agents. Streaming replication if needed later.
+- **Metrics (Prometheus)**: out of scope. Alloy supports it but not required for this stack.
+- **Traces (Tempo)**: out of scope.

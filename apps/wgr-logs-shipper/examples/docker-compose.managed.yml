@@ -1,5 +1,5 @@
 # Managed mode compose — the shipper poll the API for its config.
-# Pas besoin de sources.json local : tout est piloté depuis <LOGS_DOMAIN>/agents (admin UI).
+# Pas besoin de sources.json local : tout est piloté depuis logs.example.com/agents (admin UI).
 #
 # Variables à mettre dans .env :
 #   WGR_INGEST_TOKEN     = le token Bearer pour pousser dans Loki
@@ -16,7 +16,7 @@ services:
     restart: always
     environment:
       # Activate managed mode (presence of WGR_API_URL switches modes)
-      WGR_API_URL: https://<LOGS_DOMAIN>/mgmt
+      WGR_API_URL: https://logs.example.com/mgmt
       WGR_INGEST_TOKEN: ${WGR_INGEST_TOKEN}
       WGR_REGISTER_TOKEN: ${WGR_REGISTER_TOKEN}
       # Optional: agent display name (defaults to hostname)

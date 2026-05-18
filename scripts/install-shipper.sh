@@ -4,7 +4,7 @@
 #
 # Usage:
 #   curl -sSL https://raw.githubusercontent.com/wgr-sa/wgr-logs/main/scripts/install-shipper.sh \
-#     | sudo bash -s -- --api-url https://<LOGS_DOMAIN>/mgmt \
+#     | sudo bash -s -- --api-url https://logs.example.com/mgmt \
 #                       --register-token <REG> --ingest-token <INGEST> \
 #                       --name vps-pm2-01
 #
@@ -20,7 +20,7 @@ set -euo pipefail
 # ─── Defaults & paths ─────────────────────────────────────────────────────────
 MODE=""
 TOKEN=""
-INGEST_URL="https://<INGEST_DOMAIN>/loki/api/v1/push"
+INGEST_URL="https://ingest.example.com/loki/api/v1/push"
 INGEST_USER="wgr"
 API_URL=""
 REGISTER_TOKEN=""
@@ -52,7 +52,7 @@ usage() {
 Usage: $0 [OPTIONS]
 
 Managed mode (recommended):
-  --api-url URL          e.g. https://<LOGS_DOMAIN>/mgmt
+  --api-url URL          e.g. https://logs.example.com/mgmt
   --register-token TOK   one-time, only needed first install
   --ingest-token TOK     required, BasicAuth password for Loki
   --name NAME            optional, defaults to hostname
@@ -64,7 +64,7 @@ Static mode:
   --sources-file PATH    path to sources.json
 
 Common:
-  --ingest-url URL       defaults to https://<INGEST_DOMAIN>/loki/api/v1/push
+  --ingest-url URL       defaults to https://ingest.example.com/loki/api/v1/push
   --ingest-user USER     defaults to "wgr"
   --uninstall            stop services + remove files (keeps state)
   --help                 this message

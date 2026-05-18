@@ -12,7 +12,7 @@
 #   WGR_CONFIG_PATH (default /config/sources.json)
 #
 # Managed mode :
-#   WGR_API_URL          (e.g. https://<LOGS_DOMAIN>/mgmt)
+#   WGR_API_URL          (e.g. https://logs.example.com/mgmt)
 #   WGR_REGISTER_TOKEN   (needed on first boot to enroll, can be unset afterward)
 #   WGR_AGENT_NAME       (optional, defaults to hostname)
 #   WGR_STATE_DIR        (default /state — should be mounted as a volume)

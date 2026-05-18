@@ -1,89 +1,75 @@
-# Architecture wgr-logs
+# wgr-logs architecture
 
-Vue d'ensemble de la stack, des composants, des flux et des choix de design.
+Overview of the stack, components, flows, and design decisions.
 
-## Vue d'ensemble
+## Topology
 
 ```
-┌─────────────────────────────────── VPS wgr-logs (<VPS_IP>) ───────────────────────────────────┐
-│                                                                                                   │
-│    Internet ──443──► Traefik v2.11 ─┬─► Grafana (<LOGS_DOMAIN> root)                                │
-│                       │             ├─► API     (<LOGS_DOMAIN>/mgmt)                                │
-│                       │             └─► Loki    (<INGEST_DOMAIN>)                                   │
-│                       │                                                                           │
-│                       │  réseau Docker `wgr-logs` ────────────────────────────────────────┐       │
-│                       │                                                                   │       │
-│                       │   ┌────────────────────────────────────┐                          │       │
-│                       └──►│ shipper (managed, dogfood)         │                          │       │
-│                           │   - tail journald + nginx          │                          │       │
-│                           │   - poll API                       │                          │       │
-│                           └──────────────┬─────────────────────┘                          │       │
-│                                          │                                                │       │
-│                       ┌──────────────────┴───────────────────┐  ┌──────────────────────┐  │       │
-│                       │ Loki 3.2                             │  │ Postgres 16          │  │       │
-│                       │   chunks → S3 Infomaniak             │  │  + pg-backup daily   │  │       │
-│                       │   ruler  → S3 Infomaniak             │  └──────────┬───────────┘  │       │
-│                       │   WAL    → loki-data Docker volume   │             │              │       │
-│                       └──────────────────────────────────────┘             │              │       │
-│                                                                            │              │       │
-│                                                          ┌─────────────────┴───────────┐  │       │
-│                                                          │  wgr-logs-api (NestJS)      │  │       │
-│                                                          │   /mgmt/agents/*            │  │       │
-│                                                          │   /mgmt/source-types        │  │       │
-│                                                          │   /mgmt/health              │  │       │
-│                                                          └─────────────────────────────┘  │       │
-│                                                                                                   │
-└───────────────────────────────────────────────────────────────────────────────────────────────────┘
-                  ▲                                                  ▲
-       <INGEST_DOMAIN> │ push                            <LOGS_DOMAIN>/mgmt │ poll config + heartbeat
-                  │                                                  │
-   ┌──────────────┴──────────────┐         ┌────────────────────────┴──────────────────────────┐
-   │                             │         │                                                   │
-   │  Shipper Docker (ghcr)      │         │  Bash installer  (Alloy + systemd)                │
-   │   poll /agents/<id>/config  │         │   /usr/local/bin/wgr-shipper-poll                 │
-   │   reload alloy on change    │         │   systemctl reload alloy                          │
-   │                             │         │                                                   │
-   └─────────────────────────────┘         └───────────────────────────────────────────────────┘
-                                                              │
-                                                              │ (cron, pas de daemon)
-                                                              ▼
-                                                  ┌──────────────────────────────┐
-                                                  │ PHP cron (mutu Infomaniak)   │
-                                                  │   wgr-logs-push.php          │
-                                                  │   glob + offset + curl push  │
-                                                  └──────────────────────────────┘
+┌─────────────────────────── VPS (your domain) ──────────────────────────────┐
+│                                                                            │
+│  Internet ──443──► Traefik v2.11 ─┬─► Grafana (LOGS_DOMAIN root)           │
+│                                   ├─► API     (LOGS_DOMAIN/mgmt)          │
+│                                   └─► Loki    (INGEST_DOMAIN)             │
+│                                                                            │
+│              Docker network `wgr-logs`                                     │
+│                                                                            │
+│   ┌──────────────────────────────────┐  ┌─────────────────────┐            │
+│   │ Loki 3.2                         │  │ Postgres 16         │            │
+│   │   chunks → S3 (sovereign)        │  │ + pg-backup daily   │            │
+│   │   ruler  → S3                    │  └──────────┬──────────┘            │
+│   │   WAL    → loki-data volume      │             │                       │
+│   └──────────────────────────────────┘             │                       │
+│                                                    │                       │
+│                                       ┌────────────┴────────────┐          │
+│                                       │  wgr-logs-api (NestJS)  │          │
+│                                       │   /mgmt/agents/*        │          │
+│                                       │   /mgmt/source-types    │          │
+│                                       │   /mgmt/health          │          │
+│                                       └─────────────────────────┘          │
+│                                                                            │
+│   ┌──────────────────────────────────┐                                     │
+│   │ shipper (dogfood, managed mode)  │ ← reads journald + nginx from host  │
+│   └──────────────────────────────────┘                                     │
+└────────────────────────────────────────────────────────────────────────────┘
+              ▲                                          ▲
+  ingest push │                          poll + heartbeat│
+              │                                          │
+  ┌───────────┴───────┐  ┌──────────────────┐  ┌─────────┴──────────┐
+  │ Docker shipper    │  │ Bash installer   │  │ PHP cron           │
+  │  (multi-arch ghcr)│  │  (Alloy+systemd) │  │  (shared hosting)  │
+  └───────────────────┘  └──────────────────┘  └────────────────────┘
 
-           ┌──────────────────────────┐
-           │ wgr-logs-desk            │  Bearer admin_token
-           │ (Nuxt 4 + Tauri 2)       │  ───────────────────►  <LOGS_DOMAIN>/mgmt
-           │   Dashboard / Live /     │
-           │   Search / Alerts /      │
-           │   Agents (CRUD sources)  │
-           └──────────────────────────┘
+  ┌─────────────────────┐
+  │ wgr-logs-desk       │  Bearer admin_token
+  │ (Nuxt 4 + Tauri 2)  │  ─────────────────► LOGS_DOMAIN/mgmt
+  │  Dashboard / Live / │
+  │  Search / Alerts /  │
+  │  Agents             │
+  └─────────────────────┘
 ```
 
-## Services Docker (compose racine)
+## Docker services (root compose)
 
-| Service | Image | Volumes | Rôle |
+| Service | Image | Volumes | Purpose |
 |---|---|---|---|
-| `traefik` | traefik:v2.11 | `traefik-letsencrypt` | TLS Let's Encrypt + reverse proxy avec middlewares CORS |
-| `loki` | grafana/loki:3.2 | `loki-data` | Ingestion logs, chunks vers S3 |
-| `grafana` | grafana/grafana-oss:11.3 | `grafana-data` | UI dashboards, Explore, Alerting (provisioning auto via `docker/grafana/`) |
-| `pg` | postgres:16-alpine | `pg-data` | DB pour l'API |
-| `pg-backup` | prodrigestivill/postgres-backup-local:16 | `pg-backups` | Dump quotidien, retention 7d/4w/3m |
-| `api` | ghcr.io/wgr-sa/wgr-logs-api:latest | — | NestJS, expose `/mgmt/*` |
-| `shipper` | ghcr.io/wgr-sa/wgr-logs-shipper:latest | `shipper-state` + host mounts | Dogfood : le VPS est son propre agent |
+| `traefik` | traefik:v2.11 | `traefik-letsencrypt` | TLS via Let's Encrypt + reverse proxy with CORS middlewares |
+| `loki` | grafana/loki:3.2 | `loki-data` | Log ingestion, chunks to S3 |
+| `grafana` | grafana/grafana-oss:11.3 | `grafana-data` | Dashboards, Explore, Alerting (provisioned from `docker/grafana/`) |
+| `pg` | postgres:16-alpine | `pg-data` | API database |
+| `pg-backup` | prodrigestivill/postgres-backup-local:16 | `pg-backups` | Daily dump, 7d/4w/3m retention |
+| `api` | ghcr.io/wgr-sa/wgr-logs-api:latest | — | NestJS, exposes `/mgmt/*` |
+| `shipper` | ghcr.io/wgr-sa/wgr-logs-shipper:latest | `shipper-state` + host mounts | Dogfood: the VPS is its own managed agent |
 
-## Stockage
+## Storage
 
-- **Chunks Loki** (logs compressés) → S3 Infomaniak (`wgr-logs-chunks`)
-- **Ruler Loki** (règles d'alerte) → S3 Infomaniak (`wgr-logs-ruler`)
-- **WAL Loki** (write-ahead log, ~30 min de buffer) → volume Docker local `loki-data`
-- **Postgres** (agents, sources, config_versions) → volume Docker `pg-data`
-- **Dumps pg quotidiens** → volume Docker `pg-backups`
-- **Grafana** (dashboards persistés, plugins) → volume Docker `grafana-data`
+- **Loki chunks** (compressed logs) → S3 bucket `*-chunks`
+- **Loki ruler** (alert rules) → S3 bucket `*-ruler`
+- **Loki WAL** (write-ahead log, ~30 min buffer) → Docker volume `loki-data`
+- **Postgres** (agents, sources, config_versions) → Docker volume `pg-data`
+- **Daily pg dumps** → Docker volume `pg-backups`
+- **Grafana** (persisted dashboards, plugins) → Docker volume `grafana-data`
 
-## Schéma Postgres (managé par TypeORM)
+## Postgres schema (managed by TypeORM)
 
 ```sql
 agents
@@ -92,7 +78,7 @@ agents
   hostname      TEXT
   env           TEXT (default 'prod')
   cluster       TEXT
-  token_hash    TEXT       ← bcrypt(agent_token), @Exclude() côté DTO
+  token_hash    TEXT       ← bcrypt(agent_token), @Exclude()d from DTOs
   shipper_kind  TEXT       ← docker | bash | php | cf-tail | browser
   shipper_ver   TEXT
   status        TEXT       ← pending | active | disabled
@@ -103,7 +89,7 @@ sources
   id           SERIAL PK
   agent_id     UUID FK → agents (CASCADE)
   type         TEXT       ← pm2 | cakephp | wordpress | prestashop | nginx | journald | docker | files
-  config       JSONB      ← payload type-spécifique
+  config       JSONB      ← type-specific payload, validated against JSON schemas
   enabled      BOOL
   position     INT
   created_at / updated_at
@@ -112,136 +98,136 @@ config_versions
   id           SERIAL PK
   agent_id     UUID FK → agents (CASCADE)
   etag         TEXT       ← sha256(rendered).slice(16)
-  rendered     JSONB      ← snapshot envoyé à l'agent
+  rendered     JSONB      ← snapshot sent to the agent (audit trail)
   created_at
 ```
 
-## Flux : enrôlement + polling d'un shipper
+## Flow: shipper enrollment + polling
 
 ```
-1. Boot du shipper :
-   - Lit /state/agent.json (Docker) ou /var/lib/wgr-shipper/agent.json (bash)
-   - Si absent : POST /mgmt/agents/register avec WGR_REGISTER_TOKEN + hostname + shipper_kind
-     → API génère un agent_token (256 bits hex), bcrypt-hash dans DB
-     → Renvoie { agent_id, agent_token, status: 'pending' }
-     → Shipper sauve { agent_id, agent_token } en local
+1. Shipper boot:
+   - Reads /state/agent.json (Docker) or /var/lib/wgr-shipper/agent.json (bash)
+   - If missing: POST /mgmt/agents/register with WGR_REGISTER_TOKEN + hostname + shipper_kind
+     → API generates an agent_token (256-bit hex), bcrypt-hashed in DB
+     → Returns { agent_id, agent_token, status: 'pending' }
+     → Shipper persists locally
 
-2. Boucle de polling (toutes les 60s par défaut) :
-   - GET /mgmt/agents/<agent_id>/config avec Bearer agent_token
-     → API charge agent + sources, calcule ETag déterministe via renderer.service
-     → Met à jour agent.last_seen
-     → Si status=pending → passe à active
-     → Renvoie { etag, rendered: { agent_id, env, cluster, host, sources: [...] } }
-   - Shipper compare ETag avec celui local (state/last-etag)
-   - Si différent :
-     a. Transforme la réponse en sources.json compatible renderer
-     b. Renderer émet config.alloy depuis les modules
-     c. Sauve nouveau ETag
-     d. kill -HUP alloy (Docker) ou systemctl reload alloy (bash)
+2. Polling loop (default 60s):
+   - GET /mgmt/agents/<agent_id>/config with Bearer agent_token
+     → API loads agent + sources, computes deterministic ETag via renderer.service
+     → Updates agent.last_seen
+     → If status=pending → moves to active
+     → Returns { etag, rendered: { agent_id, env, cluster, host, sources: [...] } }
+   - Shipper compares ETag with local one (state/last-etag)
+   - If different:
+     a. Transforms response into a sources.json compatible with the renderer
+     b. Renderer emits config.alloy from the modules
+     c. Saves new ETag
+     d. kill -HUP alloy (Docker) or systemctl reload alloy (bash)
 ```
 
-## Flux : ingestion d'un log
+## Flow: log ingestion
 
 ```
-Source (app, fichier, journald)
+Source (app, file, journald)
    │
    ▼
-Alloy (sur le serveur où tournent les apps)
-   │  pipeline : extract labels + extract level (JSON or stream-based)
-   │  ajoute external_labels: { cluster: "wgr-prod" }
+Alloy (running on the source server)
+   │  pipeline: extract labels + level (JSON or stream-based)
+   │  adds external_labels: { cluster: "prod" }
    ▼
 loki.write `https://<INGEST_DOMAIN>/loki/api/v1/push` (BasicAuth wgr:INGEST_TOKEN)
    │
    ▼
-Traefik → middleware cors-ingest + ingest-auth (ajoute X-Scope-OrgID)
+Traefik → middleware cors-ingest + ingest-auth (adds X-Scope-OrgID)
    │
    ▼
 Loki container (port 3100)
-   │  validation, WAL local
-   │  → chunks vers S3 toutes les ~30min
-   │  → index TSDB local + sync S3
+   │  validates, writes to WAL
+   │  → flushes chunks to S3 every ~30 min
+   │  → local TSDB index + sync to S3
    ▼
-Stocké, queryable via Grafana Explore ou /loki/api/v1/query_range
+Stored, queryable via Grafana Explore or /loki/api/v1/query_range
 ```
 
-## Auth & rôles
+## Auth & roles
 
 ```
-                   role admin (UI desktop, Slack ops)
-                   ──────────────────────────────────
-                   token : WGR_API_ADMIN_TOKEN
-                   accès : /mgmt/agents (R/W), /mgmt/agents/:id/sources (R/W),
-                           /mgmt/source-types (R)
+admin role (desktop UI, ops)
+─────────────────────────────
+token : WGR_API_ADMIN_TOKEN
+scope : /mgmt/agents (R/W), /mgmt/agents/:id/sources (R/W),
+        /mgmt/source-types (R)
 
-                   role agent (un shipper)
-                   ───────────────────────
-                   token : agent_token (par-agent, généré au register)
-                   accès : /mgmt/agents/:id/config (R)
-                           /mgmt/agents/:id/heartbeat (W)
+agent role (a shipper)
+──────────────────────
+token : agent_token (per-agent, generated at register)
+scope : /mgmt/agents/:id/config (R)
+        /mgmt/agents/:id/heartbeat (W)
 
-                   role ingest (poussée de logs)
-                   ─────────────────────────────
-                   token : INGEST_AUTH_TOKEN (Basic auth)
-                   accès : /loki/api/v1/push (W)
+ingest role (push logs)
+────────────────────────
+token : INGEST_AUTH_TOKEN (Basic auth)
+scope : /loki/api/v1/push (W)
 
-                   role register (création d'agents)
-                   ─────────────────────────────────
-                   token : WGR_API_REGISTER_TOKEN (one-time, partagé entre les ops)
-                   accès : /mgmt/agents/register (W)
+register role (create new agents)
+─────────────────────────────────
+token : WGR_API_REGISTER_TOKEN (shared across ops)
+scope : /mgmt/agents/register (W, one-time per agent)
 ```
 
-## Décisions de design notables
+## Notable design decisions
 
-### Path-based API (`/mgmt`) au lieu de subdomain
+### Path-based API (`/mgmt`) instead of subdomain
 
-`<API_DOMAIN>` était pris. Alternative subdomain (`agents.wgr.ch`, etc.) → 1 DNS de plus. Path `/mgmt` sur `<LOGS_DOMAIN>` est suffisamment unique pour ne pas collide avec Grafana (`/api/*`, `/d/*`, etc.). Router Traefik avec rule `Host && PathPrefix(/mgmt)` est naturellement plus spécifique que `Host()` alone donc gagne la priorité.
+We host the API on `LOGS_DOMAIN/mgmt` rather than a separate subdomain to avoid managing yet another DNS record. The Traefik rule `Host && PathPrefix(/mgmt)` is naturally more specific than the Grafana `Host()` alone, so it wins the priority automatically. Grafana's own `/api/*` paths are unaffected.
 
-### ETag pour détecter les changements de config
+### ETag for change detection
 
-L'API renvoie un ETag `sha256(rendered).slice(16)`. Déterministe (sources triées par `position` puis `id`). Le shipper compare avec son ETag local → ne reload que sur diff réel. Évite les reloads inutiles d'Alloy (qui sont gratuits mais bavards dans les logs).
+The API returns an ETag `sha256(rendered).slice(16)`. Deterministic (sources sorted by `position` then `id`). The shipper compares with its local ETag → only reloads on real diffs. Avoids unnecessary Alloy reloads (which are free but noisy in logs).
 
-### Renderer en bash + jq (pas Node, pas Python)
+### Renderer in bash + jq (not Node, not Python)
 
-Le renderer du shipper Docker est en bash + jq. Pourquoi pas TypeScript ? Pour éviter une dépendance Node lourde dans l'image. L'image bash+jq fait 60MB vs ~200MB pour Node-alpine. Trade-off : la logique de templating est moins lisible mais reste sous 200 lignes.
+The Docker shipper renderer is bash + jq. Why not TypeScript? To avoid a heavy Node dependency in the image. bash+jq image is ~60 MB vs ~200 MB for Node-alpine. Trade-off: templating logic is less readable but stays under 200 lines.
 
-### Mode managed avec fallback static
+### Managed mode with static fallback
 
-Tous les shippers (Docker + bash) supportent **les deux modes** :
-- Managed (par défaut quand `WGR_API_URL` est défini) : polling
-- Static (quand `WGR_API_URL` est absent et `sources.json` est présent) : render une fois, exec alloy
+All shippers (Docker + bash) support **both modes**:
+- Managed (default when `WGR_API_URL` is set): polling
+- Static (when `WGR_API_URL` is absent and `sources.json` is present): render once, exec alloy
 
-Le static est utile pour :
-- Test sans API
-- VPS qui ne peut pas atteindre l'API (firewall, mode dégradé)
-- Bootstrap du VPS wgr-logs lui-même (chicken-egg)
+Static is useful for:
+- Testing without an API
+- VPS that can't reach the API (firewall, degraded mode)
+- Bootstrapping the wgr-logs VPS itself (chicken-egg)
 
-### Pourquoi PHP pour le mutu
+### Why PHP for shared hosting
 
-Sur un hébergement mutualisé Infomaniak :
-- Pas de Docker
-- Pas d'apt / sudo
-- Pas de systemd
-- Cron disponible
-- PHP disponible (forcément, c'est un mutu PHP)
+On a shared host (Infomaniak mutu, etc.):
+- No Docker
+- No apt / sudo
+- No systemd
+- Cron is available
+- PHP is available (it's a PHP hosting)
 
-Donc le shipper PHP est lancé via cron toutes les 5 min, lit ses offsets dans un fichier, glob les sites, push en HTTP. Pas idéal pour la latence (5 min de delay), mais c'est le seul moyen.
+So the PHP shipper runs via cron every 5 min, tracks offsets in a file, globs sites, pushes via HTTP. Not ideal latency (5 min delay) but it's the only viable approach.
 
-### Pourquoi on dogfood le VPS wgr-logs
+### Why dogfood the VPS
 
-Le service `shipper` dans le compose racine fait le VPS son propre agent. Ça :
-1. Valide que le mode managed marche en prod
-2. Rend l'observabilité visible dans la UI desktop comme n'importe quel autre serveur
-3. Sert d'exemple complet (compose, mounts, env)
+The `shipper` service in the root compose makes the VPS its own agent. This:
+1. Validates managed mode in production
+2. Makes the VPS observability visible in the desktop UI like any other server
+3. Serves as a complete example (compose, mounts, env)
 
-## Limitations connues
+## Known limitations
 
-- **Pas de migrations TypeORM** : on est en `synchronize: true` sur la DB. Acceptable car peu de données (~100 lignes max). Migrer si on atteint un volume sérieux.
-- **Hostname du container** : le shipper Docker rapporte son hostname (= container ID) au register. On peut surcharger via `WGR_AGENT_NAME` ou via l'admin UI.
-- **Pas de cluster mode pour Alloy** : un seul agent par serveur. Pas de problème vu la cible (PME, ~50 serveurs max).
-- **Pas de retention par agent** : la retention est globale dans Loki (90 jours par défaut). Difficile de garder plus longtemps les logs d'un serveur critique sans tout garder.
+- **No TypeORM migrations** yet: `synchronize: true` is fine for low-data scenarios (~100 rows). Migrate if volume grows.
+- **Container hostname**: the Docker shipper reports its hostname (= container ID) at register. Override via `WGR_AGENT_NAME` or via the admin UI.
+- **No Alloy cluster mode**: one agent per server. Fine for the target (SME, ~50 servers max).
+- **No per-agent retention**: retention is global in Loki (90 days by default). Hard to keep one server's logs longer than the rest without keeping everything.
 
-## Voir aussi
+## See also
 
-- [`ROADMAP.md`](ROADMAP.md) — phases livrées + à venir
-- [`api.md`](api.md) — référence des endpoints `/mgmt/*`
-- [`runbook.md`](runbook.md) — incidents fréquents (Loki crash, cert expiré, etc.)
+- [`ROADMAP.md`](ROADMAP.md) — shipped phases + planned
+- [`api.md`](api.md) — `/mgmt/*` endpoints reference
+- [`runbook.md`](runbook.md) — common incidents

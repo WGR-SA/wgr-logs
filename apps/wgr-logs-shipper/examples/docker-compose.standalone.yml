@@ -14,7 +14,7 @@ services:
     restart: always
     environment:
       WGR_INGEST_TOKEN: ${WGR_INGEST_TOKEN}
-      # WGR_INGEST_URL: https://<INGEST_DOMAIN>/loki/api/v1/push  # default
+      # WGR_INGEST_URL: https://ingest.example.com/loki/api/v1/push  # default
       # WGR_DEBUG: 1                                            # uncomment to dump rendered Alloy config
     volumes:
       # Config

@@ -32,7 +32,7 @@ if (!is_array($config)) {
 }
 
 // ─── Validate config ───────────────────────────────────────────────
-$ingestUrl   = $config['ingest']['url']  ?? 'https://<INGEST_DOMAIN>/loki/api/v1/push';
+$ingestUrl   = $config['ingest']['url']  ?? 'https://ingest.example.com/loki/api/v1/push';
 $ingestUser  = $config['ingest']['user'] ?? 'wgr';
 $tokenEnv    = $config['ingest']['token_env'] ?? 'WGR_INGEST_TOKEN';
 $ingestToken = getenv($tokenEnv) ?: '';

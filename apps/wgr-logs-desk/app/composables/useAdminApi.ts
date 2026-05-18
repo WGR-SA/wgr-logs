@@ -1,6 +1,6 @@
 /**
  * Typed client for the wgr-logs management API (NestJS).
- * Talks to the admin endpoints under https://<LOGS_DOMAIN>/mgmt.
+ * Talks to the admin endpoints under https://logs.example.com/mgmt.
  *
  * Auth: Bearer WGR_API_ADMIN_TOKEN (stored in settings).
  */

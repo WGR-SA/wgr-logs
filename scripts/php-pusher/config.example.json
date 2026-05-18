@@ -1,6 +1,6 @@
 {
   "ingest": {
-    "url": "https://<INGEST_DOMAIN>/loki/api/v1/push",
+    "url": "https://ingest.example.com/loki/api/v1/push",
     "user": "wgr",
     "token_env": "WGR_INGEST_TOKEN"
   },

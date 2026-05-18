@@ -64,11 +64,11 @@ async function testAdminApi() {
 
     <div class="space-y-4">
       <UFormField label="Endpoint d'ingestion Loki" required>
-        <UInput v-model="endpoint" placeholder="https://<INGEST_DOMAIN>" class="w-full" />
+        <UInput v-model="endpoint" placeholder="https://ingest.example.com" class="w-full" />
       </UFormField>
 
       <UFormField label="URL Grafana (pour Alertmanager)">
-        <UInput v-model="grafanaUrl" placeholder="https://<LOGS_DOMAIN>" class="w-full" />
+        <UInput v-model="grafanaUrl" placeholder="https://logs.example.com" class="w-full" />
       </UFormField>
 
       <UFormField label="Token (INGEST_AUTH_TOKEN)" required>
@@ -90,8 +90,8 @@ async function testAdminApi() {
       <h3 class="text-base font-semibold">Management API</h3>
       <p class="text-xs text-neutral-400 -mt-3">Pour piloter les agents et leurs sources depuis cet écran. Optionnel.</p>
 
-      <UFormField label="URL admin API" description="Ex: https://<LOGS_DOMAIN>/mgmt">
-        <UInput v-model="adminApiUrl" placeholder="https://<LOGS_DOMAIN>/mgmt" class="w-full" />
+      <UFormField label="URL admin API" description="Ex: https://logs.example.com/mgmt">
+        <UInput v-model="adminApiUrl" placeholder="https://logs.example.com/mgmt" class="w-full" />
       </UFormField>
 
       <UFormField label="Token admin (WGR_API_ADMIN_TOKEN)">
