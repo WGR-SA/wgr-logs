@@ -31,6 +31,8 @@ export default defineNuxtConfig({
     '/live': { prerender: true },
     '/search': { prerender: true },
     '/alerts': { prerender: true },
+    '/agents': { prerender: true },
+    '/agents/**': { ssr: false },
     '/settings': { prerender: true }
   },
 

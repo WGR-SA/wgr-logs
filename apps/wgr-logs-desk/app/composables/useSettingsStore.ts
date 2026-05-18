@@ -4,6 +4,8 @@ interface Settings {
   endpoint: string          // e.g. https://<INGEST_DOMAIN>
   grafanaUrl: string        // e.g. https://<LOGS_DOMAIN>
   token: string             // INGEST_AUTH_TOKEN
+  adminApiUrl: string       // e.g. https://<LOGS_DOMAIN>/mgmt
+  adminToken: string        // WGR_API_ADMIN_TOKEN
   notifyOnFiring: boolean
 }
 
@@ -11,6 +13,8 @@ const DEFAULTS: Settings = {
   endpoint: '',
   grafanaUrl: '',
   token: '',
+  adminApiUrl: '',
+  adminToken: '',
   notifyOnFiring: true
 }
 
@@ -50,6 +54,8 @@ export function useSettingsStore() {
     endpoint: computed({ get: () => state.endpoint, set: (v) => void set('endpoint', v) }),
     grafanaUrl: computed({ get: () => state.grafanaUrl, set: (v) => void set('grafanaUrl', v) }),
     token: computed({ get: () => state.token, set: (v) => void set('token', v) }),
+    adminApiUrl: computed({ get: () => state.adminApiUrl, set: (v) => void set('adminApiUrl', v) }),
+    adminToken: computed({ get: () => state.adminToken, set: (v) => void set('adminToken', v) }),
     notifyOnFiring: computed({ get: () => state.notifyOnFiring, set: (v) => void set('notifyOnFiring', v) }),
     set
   }

@@ -9,6 +9,10 @@ const grafanaUrl = computed({
   get: () => settings.grafanaUrl.value,
   set: (v) => { settings.grafanaUrl.value = v.replace(/\/$/, '') }
 })
+const adminApiUrl = computed({
+  get: () => settings.adminApiUrl.value,
+  set: (v) => { settings.adminApiUrl.value = v.replace(/\/$/, '') }
+})
 
 const testStatus = ref<'idle' | 'ok' | 'fail'>('idle')
 const testMessage = ref('')
@@ -28,6 +32,28 @@ async function testConnection() {
   } catch (e) {
     testStatus.value = 'fail'
     testMessage.value = e instanceof Error ? e.message : String(e)
+  }
+}
+
+const adminTestStatus = ref<'idle' | 'ok' | 'fail'>('idle')
+const adminTestMessage = ref('')
+
+async function testAdminApi() {
+  adminTestStatus.value = 'idle'
+  const api = useAdminApi()
+  if (!api) {
+    adminTestStatus.value = 'fail'
+    adminTestMessage.value = 'URL ou token admin manquant'
+    return
+  }
+  try {
+    const h = await api.health()
+    const agents = await api.listAgents()
+    adminTestStatus.value = 'ok'
+    adminTestMessage.value = `API ${h.status}, ${agents.length} agent(s) enregistré(s)`
+  } catch (e) {
+    adminTestStatus.value = 'fail'
+    adminTestMessage.value = e instanceof Error ? e.message : String(e)
   }
 }
 </script>
@@ -54,11 +80,28 @@ async function testConnection() {
       </UFormField>
 
       <div class="flex items-center gap-3 pt-2">
-        <UButton :loading="testStatus === 'idle' && false" @click="testConnection">
-          Tester la connexion
-        </UButton>
+        <UButton @click="testConnection">Tester Loki</UButton>
         <span v-if="testStatus === 'ok'" class="text-emerald-400 text-sm">{{ testMessage }}</span>
         <span v-if="testStatus === 'fail'" class="text-red-400 text-sm">{{ testMessage }}</span>
+      </div>
+
+      <hr class="border-neutral-800 my-4" />
+
+      <h3 class="text-base font-semibold">Management API</h3>
+      <p class="text-xs text-neutral-400 -mt-3">Pour piloter les agents et leurs sources depuis cet écran. Optionnel.</p>
+
+      <UFormField label="URL admin API" description="Ex: https://<LOGS_DOMAIN>/mgmt">
+        <UInput v-model="adminApiUrl" placeholder="https://<LOGS_DOMAIN>/mgmt" class="w-full" />
+      </UFormField>
+
+      <UFormField label="Token admin (WGR_API_ADMIN_TOKEN)">
+        <UInput v-model="settings.adminToken.value" type="password" class="w-full" />
+      </UFormField>
+
+      <div class="flex items-center gap-3 pt-2">
+        <UButton @click="testAdminApi">Tester admin API</UButton>
+        <span v-if="adminTestStatus === 'ok'" class="text-emerald-400 text-sm">{{ adminTestMessage }}</span>
+        <span v-if="adminTestStatus === 'fail'" class="text-red-400 text-sm">{{ adminTestMessage }}</span>
       </div>
     </div>
   </section>
