@@ -7,6 +7,7 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm'
+import { Exclude } from 'class-transformer'
 import { Source } from '../sources/source.entity'
 
 export type AgentStatus = 'pending' | 'active' | 'disabled'
@@ -29,6 +30,7 @@ export class Agent {
   @Column({ default: 'wgr-prod' })
   cluster!: string
 
+  @Exclude()
   @Column({ name: 'token_hash' })
   tokenHash!: string
 

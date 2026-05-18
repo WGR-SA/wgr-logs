@@ -37,9 +37,11 @@ RUN npm install --workspaces --include-workspace-root --omit=dev --no-audit --no
 # Compiled output
 COPY --from=builder /app/apps/wgr-logs-api/dist ./apps/wgr-logs-api/dist
 
-# Source-types schema served by /api/source-types
-RUN mkdir -p /opt/wgr-logs-api/schemas \
-    && cp packages/alloy-modules/schemas/source-types.json /opt/wgr-logs-api/schemas/
+# Source-types schema served by /source-types endpoint
+# (path expected by src/source-types/source-types.controller.ts:
+#  join(__dirname, '..', '..', 'schemas', 'source-types.json'))
+RUN mkdir -p apps/wgr-logs-api/schemas \
+    && cp packages/alloy-modules/schemas/source-types.json apps/wgr-logs-api/schemas/
 
 ENV NODE_ENV=production \
     API_PORT=3000
