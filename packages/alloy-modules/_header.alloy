@@ -1,0 +1,20 @@
+// _header.alloy — top of generated config.alloy
+// Logging + the unique loki.write block used by all module instances.
+
+logging {
+  level  = "info"
+  format = "logfmt"
+}
+
+loki.write "wgr" {
+  endpoint {
+    url = sys.env("WGR_INGEST_URL")
+    basic_auth {
+      username = sys.env("WGR_INGEST_USER")
+      password = sys.env("WGR_INGEST_TOKEN")
+    }
+  }
+  external_labels = {
+    cluster = "{{CLUSTER}}",
+  }
+}

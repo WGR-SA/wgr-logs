@@ -1,0 +1,60 @@
+// docker.alloy — collect Docker container logs from the host.
+// Reads /var/lib/docker/containers/*/*-json.log directly.
+// Mount /var/lib/docker/containers:ro and /var/run/docker.sock:ro into the shipper.
+
+discovery.docker "containers_{{INDEX}}" {
+  host = "unix:///var/run/docker.sock"
+}
+
+discovery.relabel "docker_{{INDEX}}" {
+  targets = discovery.docker.containers_{{INDEX}}.targets
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "/(.*)"
+    target_label  = "container"
+  }
+  rule {
+    source_labels = ["__meta_docker_container_log_stream"]
+    target_label  = "stream"
+  }
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+    target_label  = "compose_service"
+  }
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_project"]
+    target_label  = "compose_project"
+  }
+}
+
+loki.source.docker "docker_{{INDEX}}" {
+  host          = "unix:///var/run/docker.sock"
+  targets       = discovery.relabel.docker_{{INDEX}}.output
+  forward_to    = [loki.process.docker_{{INDEX}}.receiver]
+  labels        = {
+    env    = "{{ENV}}",
+    host   = "{{HOST}}",
+    source = "docker",
+  }
+}
+
+loki.process "docker_{{INDEX}}" {
+  forward_to = [loki.write.wgr.receiver]
+
+  stage.json {
+    expressions = { json_level = "level" }
+  }
+  stage.labels {
+    values = { level = "json_level" }
+  }
+
+  // Stderr stream → assume error level if no explicit level
+  stage.match {
+    selector = "{level=\"\", stream=\"stderr\"}"
+    stage.static_labels { values = { level = "error" } }
+  }
+  stage.match {
+    selector = "{level=\"\", stream=\"stdout\"}"
+    stage.static_labels { values = { level = "info" } }
+  }
+}

@@ -1,0 +1,125 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "WGR Logs source types catalog",
+  "description": "Validates each source entry in sources.json. Each type defines its own config schema.",
+  "definitions": {
+    "pm2": {
+      "title": "PM2",
+      "description": "Tail PM2 process logs",
+      "icon": "i-lucide-cpu",
+      "type": "object",
+      "required": ["type", "path"],
+      "properties": {
+        "type": { "const": "pm2" },
+        "path": {
+          "type": "string",
+          "title": "Chemin du dossier PM2 logs",
+          "description": "Ex: /home/debian/.pm2/logs ou /var/log/pm2",
+          "default": "/home/debian/.pm2/logs"
+        }
+      }
+    },
+    "cakephp": {
+      "title": "CakePHP",
+      "description": "Auto-discover CakePHP apps under a base directory (supports 2.x and 3+)",
+      "icon": "i-lucide-cake-slice",
+      "type": "object",
+      "required": ["type", "base_dir"],
+      "properties": {
+        "type": { "const": "cakephp" },
+        "base_dir": {
+          "type": "string",
+          "title": "Racine des apps CakePHP",
+          "description": "Ex: /var/www — auto-découvre /var/www/<app>/logs/ et /var/www/<app>/app/tmp/logs/",
+          "default": "/var/www"
+        }
+      }
+    },
+    "wordpress": {
+      "title": "WordPress",
+      "description": "Auto-discover WordPress sites' debug.log under a base directory",
+      "icon": "i-lucide-globe",
+      "type": "object",
+      "required": ["type", "base_dir"],
+      "properties": {
+        "type": { "const": "wordpress" },
+        "base_dir": {
+          "type": "string",
+          "title": "Racine des sites WordPress",
+          "description": "Ex: /var/www — auto-découvre /var/www/<site>/wp-content/debug.log",
+          "default": "/var/www"
+        }
+      }
+    },
+    "prestashop": {
+      "title": "PrestaShop",
+      "description": "Auto-discover PrestaShop shops' logs under a base directory",
+      "icon": "i-lucide-shopping-bag",
+      "type": "object",
+      "required": ["type", "base_dir"],
+      "properties": {
+        "type": { "const": "prestashop" },
+        "base_dir": {
+          "type": "string",
+          "title": "Racine des boutiques PrestaShop",
+          "description": "Ex: /var/www — auto-découvre /var/www/<shop>/var/logs/ et /var/www/<shop>/log/",
+          "default": "/var/www"
+        }
+      }
+    },
+    "nginx": {
+      "title": "Nginx",
+      "description": "Tail nginx access + error logs from conventional path",
+      "icon": "i-lucide-server",
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": { "const": "nginx" }
+      }
+    },
+    "journald": {
+      "title": "systemd journal",
+      "description": "Read systemd journal entries",
+      "icon": "i-lucide-list",
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": { "const": "journald" }
+      }
+    },
+    "docker": {
+      "title": "Docker containers",
+      "description": "Discover and tail Docker container logs via the daemon socket",
+      "icon": "i-lucide-container",
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": { "const": "docker" }
+      }
+    },
+    "files": {
+      "title": "Custom files",
+      "description": "Generic glob with custom labels",
+      "icon": "i-lucide-file-text",
+      "type": "object",
+      "required": ["type", "paths"],
+      "properties": {
+        "type": { "const": "files" },
+        "paths": {
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 1,
+          "title": "Chemins (globs)",
+          "description": "Ex: [\"/var/log/myapp/*.log\"]"
+        },
+        "labels": {
+          "type": "object",
+          "additionalProperties": { "type": "string" },
+          "title": "Labels custom",
+          "description": "Ex: { \"app\": \"myapp\", \"component\": \"worker\" }",
+          "default": {}
+        }
+      }
+    }
+  }
+}

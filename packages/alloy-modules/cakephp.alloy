@@ -1,0 +1,73 @@
+// cakephp.alloy — auto-discovery CakePHP logs.
+// Reads both CakePHP 3+ layout (<BASE_DIR>/<app>/logs/*.log) and
+// CakePHP 2.x layout (<BASE_DIR>/<app>/app/tmp/logs/*.log).
+//
+// Source config fields:
+//   base_dir:  /var/www  (or where apps live)
+
+local.file_match "cakephp_{{INDEX}}" {
+  path_targets = [
+    {
+      __path__ = "{{BASE_DIR}}/*/logs/*.log",
+      env      = "{{ENV}}",
+      host     = "{{HOST}}",
+      source   = "cakephp",
+    },
+    {
+      __path__ = "{{BASE_DIR}}/*/app/tmp/logs/*.log",
+      env      = "{{ENV}}",
+      host     = "{{HOST}}",
+      source   = "cakephp",
+    },
+  ]
+}
+
+loki.process "cakephp_{{INDEX}}" {
+  forward_to = [loki.write.wgr.receiver]
+
+  // Extract app name + log type from path:
+  //   /<base>/<app>/logs/<log_type>.log
+  //   /<base>/<app>/app/tmp/logs/<log_type>.log
+  stage.regex {
+    expression = ".*/(?P<app>[^/]+)/(?:logs|app/tmp/logs)/(?P<log_type>[a-z][a-z0-9-]*)\\.log$"
+    source     = "filename"
+  }
+  stage.labels {
+    values = {
+      app      = "",
+      log_type = "",
+    }
+  }
+
+  // JSON parse (works when CakePHP uses JsonFormatter)
+  stage.json {
+    expressions = { json_level = "level" }
+  }
+  stage.labels {
+    values = { level = "json_level" }
+  }
+
+  // Fallback: derive level from log_type if JSON didn't yield one
+  stage.match {
+    selector = "{level=\"\", log_type=\"error\"}"
+    stage.static_labels { values = { level = "error" } }
+  }
+  stage.match {
+    selector = "{level=\"\", log_type=\"cli-error\"}"
+    stage.static_labels { values = { level = "error" } }
+  }
+  stage.match {
+    selector = "{level=\"\", log_type=\"debug\"}"
+    stage.static_labels { values = { level = "debug" } }
+  }
+  stage.match {
+    selector = "{level=\"\", log_type=\"queries\"}"
+    stage.static_labels { values = { level = "info" } }
+  }
+}
+
+loki.source.file "cakephp_{{INDEX}}" {
+  targets       = local.file_match.cakephp_{{INDEX}}.targets
+  forward_to    = [loki.process.cakephp_{{INDEX}}.receiver]
+  tail_from_end = false
+}

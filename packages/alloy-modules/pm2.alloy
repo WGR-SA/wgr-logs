@@ -1,0 +1,51 @@
+// pm2.alloy — tail PM2 process logs.
+// Reads <PM2_PATH>/*.log, extracts app name + stream (out|error) from filename.
+//
+// Source config fields:
+//   path:  /var/log/pm2     (absolute, required after rendering)
+
+local.file_match "pm2_{{INDEX}}" {
+  path_targets = [
+    {
+      __path__ = "{{PATH}}/*.log",
+      env      = "{{ENV}}",
+      host     = "{{HOST}}",
+      source   = "pm2",
+    },
+  ]
+}
+
+loki.process "pm2_{{INDEX}}" {
+  forward_to = [loki.write.wgr.receiver]
+
+  stage.regex {
+    expression = ".*/(?P<app>.+)-(?P<stream>out|error)\\.log$"
+    source     = "filename"
+  }
+  stage.labels {
+    values = {
+      app    = "",
+      stream = "",
+    }
+  }
+  stage.match {
+    selector = "{stream=\"error\"}"
+    stage.static_labels { values = { level = "error" } }
+  }
+  stage.match {
+    selector = "{stream=\"out\"}"
+    stage.static_labels { values = { level = "info" } }
+  }
+  stage.json {
+    expressions = { json_level = "level" }
+  }
+  stage.labels {
+    values = { level = "json_level" }
+  }
+}
+
+loki.source.file "pm2_{{INDEX}}" {
+  targets       = local.file_match.pm2_{{INDEX}}.targets
+  forward_to    = [loki.process.pm2_{{INDEX}}.receiver]
+  tail_from_end = false
+}

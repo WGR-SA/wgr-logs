@@ -1,0 +1,69 @@
+// prestashop.alloy — PrestaShop logs auto-discovery.
+// Reads <BASE_DIR>/<shop>/var/logs/*.log (PrestaShop 1.7+)
+// and <BASE_DIR>/<shop>/log/*.log (legacy 1.6 fallback).
+//
+// Source config fields:
+//   base_dir:  /var/www
+
+local.file_match "prestashop_{{INDEX}}" {
+  path_targets = [
+    {
+      __path__ = "{{BASE_DIR}}/*/var/logs/*.log",
+      env      = "{{ENV}}",
+      host     = "{{HOST}}",
+      source   = "prestashop",
+    },
+    {
+      __path__ = "{{BASE_DIR}}/*/log/*.log",
+      env      = "{{ENV}}",
+      host     = "{{HOST}}",
+      source   = "prestashop",
+    },
+  ]
+}
+
+loki.process "prestashop_{{INDEX}}" {
+  forward_to = [loki.write.wgr.receiver]
+
+  // Extract shop name + log file name from path
+  stage.regex {
+    expression = ".*/(?P<app>[^/]+)/(?:var/logs|log)/(?P<log_file>[a-z0-9][a-z0-9_-]*)\\.log$"
+    source     = "filename"
+  }
+  stage.labels {
+    values = {
+      app      = "",
+      log_file = "",
+    }
+  }
+
+  // PrestaShop with Monolog often writes JSON or Apache common format.
+  // Try JSON first.
+  stage.json {
+    expressions = {
+      json_level   = "level_name",
+      json_message = "message",
+    }
+  }
+  stage.labels {
+    values = { level = "json_level" }
+  }
+
+  // Fallback: lines like "[INFO] ..." or "[ERROR] ..."
+  stage.regex {
+    expression = "^\\[(?P<bracketed_level>INFO|WARNING|ERROR|CRITICAL|DEBUG|NOTICE)\\]"
+  }
+  stage.template {
+    source   = "level"
+    template = "{{ if eq .Value \"\" }}{{ if .bracketed_level }}{{ ToLower .bracketed_level }}{{ else }}info{{ end }}{{ else }}{{ .Value }}{{ end }}"
+  }
+  stage.labels {
+    values = { level = "" }
+  }
+}
+
+loki.source.file "prestashop_{{INDEX}}" {
+  targets       = local.file_match.prestashop_{{INDEX}}.targets
+  forward_to    = [loki.process.prestashop_{{INDEX}}.receiver]
+  tail_from_end = false
+}

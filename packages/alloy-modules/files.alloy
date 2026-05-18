@@ -1,0 +1,32 @@
+// files.alloy — generic glob with custom labels.
+// Used for anything that doesn't fit a specific module (cron logs, app-specific
+// custom dirs, etc.).
+//
+// Source config fields:
+//   paths:   ["/var/log/myapp/*.log", "/var/log/cron.log"]
+//   labels:  { app: "myapp", component: "worker" }
+//
+// The renderer must expand `paths` into individual path_targets entries and
+// merge `labels` into each target.
+
+local.file_match "files_{{INDEX}}" {
+  path_targets = [{{TARGETS}}]
+}
+
+loki.process "files_{{INDEX}}" {
+  forward_to = [loki.write.wgr.receiver]
+
+  // Try JSON, otherwise pass through.
+  stage.json {
+    expressions = { json_level = "level" }
+  }
+  stage.labels {
+    values = { level = "json_level" }
+  }
+}
+
+loki.source.file "files_{{INDEX}}" {
+  targets       = local.file_match.files_{{INDEX}}.targets
+  forward_to    = [loki.process.files_{{INDEX}}.receiver]
+  tail_from_end = false
+}

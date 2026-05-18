@@ -1,0 +1,60 @@
+// nginx.alloy — nginx access + error logs.
+// Reads /var/log/nginx/access.log and /var/log/nginx/error.log.
+//
+// No source config fields needed (paths are conventional).
+
+local.file_match "nginx_{{INDEX}}_access" {
+  path_targets = [
+    {
+      __path__ = "/var/log/nginx/access.log",
+      app      = "nginx",
+      env      = "{{ENV}}",
+      host     = "{{HOST}}",
+      source   = "nginx",
+      stream   = "access",
+    },
+  ]
+}
+
+local.file_match "nginx_{{INDEX}}_error" {
+  path_targets = [
+    {
+      __path__ = "/var/log/nginx/error.log",
+      app      = "nginx",
+      env      = "{{ENV}}",
+      host     = "{{HOST}}",
+      source   = "nginx",
+      stream   = "error",
+      level    = "error",
+    },
+  ]
+}
+
+loki.process "nginx_{{INDEX}}_access" {
+  forward_to = [loki.write.wgr.receiver]
+
+  // Try combined format: status code matters for level
+  // <ip> - <user> [<time>] "<method> <path> <proto>" <status> <bytes> "<referer>" "<ua>"
+  stage.regex {
+    expression = "\\s(?P<status>[1-5][0-9]{2})\\s"
+  }
+  stage.template {
+    source   = "level"
+    template = "{{ if .status }}{{ if regexMatch \"^5\" .status }}error{{ else if regexMatch \"^4\" .status }}warn{{ else }}info{{ end }}{{ else }}info{{ end }}"
+  }
+  stage.labels {
+    values = { level = "" }
+  }
+}
+
+loki.source.file "nginx_{{INDEX}}_access" {
+  targets       = local.file_match.nginx_{{INDEX}}_access.targets
+  forward_to    = [loki.process.nginx_{{INDEX}}_access.receiver]
+  tail_from_end = false
+}
+
+loki.source.file "nginx_{{INDEX}}_error" {
+  targets       = local.file_match.nginx_{{INDEX}}_error.targets
+  forward_to    = [loki.write.wgr.receiver]
+  tail_from_end = false
+}

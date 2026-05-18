@@ -1,0 +1,30 @@
+// journald.alloy — systemd journal reader.
+// Mounts /run/log/journal and /etc/machine-id when used in Docker.
+
+discovery.relabel "systemd_{{INDEX}}" {
+  targets = []
+  rule {
+    source_labels = ["__journal__systemd_unit"]
+    target_label  = "unit"
+  }
+  rule {
+    source_labels = ["__journal__hostname"]
+    target_label  = "host"
+  }
+  rule {
+    source_labels = ["__journal_priority_keyword"]
+    target_label  = "level"
+  }
+}
+
+loki.source.journal "systemd_{{INDEX}}" {
+  max_age       = "12h"
+  path          = "/run/log/journal"
+  relabel_rules = discovery.relabel.systemd_{{INDEX}}.rules
+  forward_to    = [loki.write.wgr.receiver]
+  labels        = {
+    job    = "systemd-journal",
+    env    = "{{ENV}}",
+    source = "journald",
+  }
+}

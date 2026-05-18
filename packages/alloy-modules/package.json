@@ -1,0 +1,13 @@
+{
+  "name": "@wgr/alloy-modules",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Modular Grafana Alloy fragments used by wgr-logs shippers",
+  "files": [
+    "*.alloy",
+    "schemas/"
+  ],
+  "exports": {
+    "./schemas": "./schemas/source-types.json"
+  }
+}

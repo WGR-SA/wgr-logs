@@ -1,0 +1,54 @@
+// wordpress.alloy — WordPress debug.log auto-discovery.
+// Reads <BASE_DIR>/<site>/wp-content/debug.log
+//
+// Source config fields:
+//   base_dir:  /var/www  (root where WP sites live)
+//
+// Note: WordPress writes errors via PHP's error_log() to debug.log when
+// WP_DEBUG_LOG is true. Default-disabled in many setups; user may need to
+// `define('WP_DEBUG_LOG', true);` in wp-config.php for this to capture.
+
+local.file_match "wordpress_{{INDEX}}" {
+  path_targets = [
+    {
+      __path__ = "{{BASE_DIR}}/*/wp-content/debug.log",
+      env      = "{{ENV}}",
+      host     = "{{HOST}}",
+      source   = "wordpress",
+    },
+  ]
+}
+
+loki.process "wordpress_{{INDEX}}" {
+  forward_to = [loki.write.wgr.receiver]
+
+  // Extract site name from path: /<base>/<site>/wp-content/debug.log
+  stage.regex {
+    expression = ".*/(?P<app>[^/]+)/wp-content/debug\\.log$"
+    source     = "filename"
+  }
+  stage.labels {
+    values = { app = "" }
+  }
+
+  // WordPress writes lines like:
+  //   [18-May-2026 11:23:45 UTC] PHP Notice: ...
+  //   [18-May-2026 11:23:45 UTC] PHP Fatal error: ...
+  // Extract the severity word that follows "PHP".
+  stage.regex {
+    expression = "\\[[^\\]]+\\]\\s+PHP\\s+(?P<php_severity>[A-Za-z ]+):"
+  }
+  stage.template {
+    source   = "level"
+    template = "{{ if eq .Value \"\" }}{{ if eq .php_severity \"Fatal error\" }}error{{ else if eq .php_severity \"Parse error\" }}error{{ else if eq .php_severity \"Warning\" }}warn{{ else if eq .php_severity \"Notice\" }}info{{ else if eq .php_severity \"Deprecated\" }}info{{ else }}info{{ end }}{{ else }}{{ .Value }}{{ end }}"
+  }
+  stage.labels {
+    values = { level = "" }
+  }
+}
+
+loki.source.file "wordpress_{{INDEX}}" {
+  targets       = local.file_match.wordpress_{{INDEX}}.targets
+  forward_to    = [loki.process.wordpress_{{INDEX}}.receiver]
+  tail_from_end = false
+}
