@@ -1,0 +1,39 @@
+# Standalone compose — un seul service shipper sur un serveur dédié.
+# Copie ce fichier vers /etc/wgr-logs/docker-compose.yml + adapte les mounts.
+#
+# Usage:
+#   cd /etc/wgr-logs
+#   cp examples/sources.example.json sources.json   # puis édite
+#   echo "WGR_INGEST_TOKEN=<le_token>" > .env
+#   docker compose up -d
+#   docker compose logs -f
+
+services:
+  shipper:
+    image: ghcr.io/wgr-sa/wgr-logs-shipper:latest
+    restart: always
+    environment:
+      WGR_INGEST_TOKEN: ${WGR_INGEST_TOKEN}
+      # WGR_INGEST_URL: https://<INGEST_DOMAIN>/loki/api/v1/push  # default
+      # WGR_DEBUG: 1                                            # uncomment to dump rendered Alloy config
+    volumes:
+      # Config
+      - ./sources.json:/config/sources.json:ro
+
+      # Mounts par type de source — ajuste selon ce qui est déclaré dans sources.json
+      # PM2 (adjust to your PM2 user's logs dir)
+      - /home/debian/.pm2/logs:/var/log/pm2:ro
+
+      # CakePHP / WordPress / PrestaShop (souvent même base_dir)
+      - /var/www:/var/www:ro
+
+      # Nginx
+      - /var/log/nginx:/var/log/nginx:ro
+
+      # Systemd journal
+      - /run/log/journal:/run/log/journal:ro
+      - /etc/machine-id:/etc/machine-id:ro
+
+      # Docker (uncomment if type: docker is in sources.json)
+      # - /var/run/docker.sock:/var/run/docker.sock:ro
+      # - /var/lib/docker/containers:/var/lib/docker/containers:ro

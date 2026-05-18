@@ -1,0 +1,40 @@
+# Snippet à coller dans un docker-compose.yml existant.
+#
+# Le shipper observe les autres services via les volumes partagés.
+# Ne crée pas de réseau dédié — il accède aux logs Docker via la socket,
+# pas via réseau, donc pas besoin de joindre un network.
+#
+# Variables à ajouter dans le .env existant :
+#   WGR_INGEST_TOKEN=<le_token>
+
+services:
+  # ... tes services existants ...
+
+  shipper:
+    image: ghcr.io/wgr-sa/wgr-logs-shipper:latest
+    restart: always
+    environment:
+      WGR_INGEST_TOKEN: ${WGR_INGEST_TOKEN}
+    volumes:
+      - ./shipper/sources.json:/config/sources.json:ro
+
+      # Pour capturer les logs des autres containers Docker du compose :
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+
+      # Plus systemd + nginx selon les sources déclarées
+      - /run/log/journal:/run/log/journal:ro
+      - /etc/machine-id:/etc/machine-id:ro
+      - /var/log/nginx:/var/log/nginx:ro
+
+    # Pas de network (lecture via socket Docker, pas via TCP)
+
+# `./shipper/sources.json` exemple :
+#   {
+#     "defaults": { "env": "prod", "host": "vps-crm-01" },
+#     "sources": [
+#       { "type": "docker" },
+#       { "type": "journald" },
+#       { "type": "nginx" }
+#     ]
+#   }

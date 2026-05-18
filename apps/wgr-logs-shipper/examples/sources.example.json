@@ -1,0 +1,40 @@
+{
+  "defaults": {
+    "env": "prod",
+    "cluster": "wgr-prod"
+  },
+  "sources": [
+    {
+      "type": "pm2",
+      "path": "/var/log/pm2"
+    },
+    {
+      "type": "cakephp",
+      "base_dir": "/var/www"
+    },
+    {
+      "type": "wordpress",
+      "base_dir": "/var/www"
+    },
+    {
+      "type": "prestashop",
+      "base_dir": "/var/www"
+    },
+    {
+      "type": "nginx"
+    },
+    {
+      "type": "journald"
+    },
+    {
+      "type": "files",
+      "paths": [
+        "/var/log/myapp/*.log"
+      ],
+      "labels": {
+        "app": "myapp",
+        "component": "worker"
+      }
+    }
+  ]
+}
