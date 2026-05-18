@@ -1,0 +1,22 @@
+name = "wgr-tail-collector"
+main = "src/index.ts"
+compatibility_date = "2024-12-01"
+
+# This Worker has no public route. It's invoked only as a tail_consumer
+# of other Workers (declared on the SOURCE worker's wrangler.toml or via
+# `wrangler tail-consumer add`).
+
+# Public vars (visible in dashboard) — adapt at deploy time
+[vars]
+WGR_INGEST_URL = "https://<INGEST_DOMAIN>/loki/api/v1/push"
+WGR_INGEST_USER = "wgr"
+WGR_ENV = "prod"
+WGR_CLUSTER = "prod"
+
+# Secret WGR_INGEST_TOKEN must be set via:
+#   wrangler secret put WGR_INGEST_TOKEN
+# (never commit the token here)
+
+# Environments — override per-environment if needed
+# [env.staging]
+# vars = { WGR_ENV = "staging", WGR_INGEST_URL = "https://<STAGING_INGEST_DOMAIN>/loki/api/v1/push" }
