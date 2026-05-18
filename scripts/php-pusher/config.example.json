@@ -1,0 +1,39 @@
+{
+  "ingest": {
+    "url": "https://<INGEST_DOMAIN>/loki/api/v1/push",
+    "user": "wgr",
+    "token_env": "WGR_INGEST_TOKEN"
+  },
+  "defaults": {
+    "env": "prod",
+    "cluster": "wgr-prod",
+    "host": "mutu-infomaniak-01"
+  },
+  "state_dir": "/home/clients/XXXXXX/wgr-logs/.state",
+  "sources": [
+    {
+      "type": "cakephp2",
+      "glob": "/home/clients/*/sites/*/app/tmp/logs/*.log",
+      "app_from_path": "#/sites/([^/]+)/#",
+      "labels": { "framework": "cakephp2" }
+    },
+    {
+      "type": "cakephp3",
+      "glob": "/home/clients/*/sites/*/logs/*.log",
+      "app_from_path": "#/sites/([^/]+)/#",
+      "labels": { "framework": "cakephp3" }
+    },
+    {
+      "type": "wordpress",
+      "glob": "/home/clients/*/sites/*/wp-content/debug.log",
+      "app_from_path": "#/sites/([^/]+)/#",
+      "labels": { "framework": "wordpress" }
+    },
+    {
+      "type": "prestashop",
+      "glob": "/home/clients/*/sites/*/var/logs/*.log",
+      "app_from_path": "#/sites/([^/]+)/#",
+      "labels": { "framework": "prestashop" }
+    }
+  ]
+}
