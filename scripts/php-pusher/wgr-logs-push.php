@@ -199,9 +199,14 @@ function extractApp(string $file, ?string $regex, ?string $fallback): string {
 }
 
 function pushBatch(string $url, string $user, string $token, array $streams): void {
-    $payload = json_encode(['streams' => $streams], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+    // JSON_INVALID_UTF8_SUBSTITUTE : remplace les bytes mal encodés par U+FFFD au lieu d'échouer.
+    // Apps qui logent en latin-1 / windows-1252 ou contenant des caractères corrompus ne cassent plus le batch.
+    $payload = json_encode(
+        ['streams' => $streams],
+        JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE
+    );
     if ($payload === false) {
-        throw new \RuntimeException('Failed to encode payload');
+        throw new \RuntimeException('Failed to encode payload: ' . json_last_error_msg());
     }
 
     $ch = curl_init($url);
