@@ -104,7 +104,11 @@ foreach ($sources as $source) {
                 $source['level_from_msg'] ?? null
             );
             if ($batches !== null && !empty($batches)) {
-                pushBatch($ingestUrl, $ingestUser, $ingestToken, $batches);
+                // Split by byte budget — Loki's gRPC server caps each push at 16 MiB by config,
+                // 4 MiB by default. Keep well under either.
+                foreach (chunkByBytes($batches, 2_500_000) as $chunk) {
+                    pushBatch($ingestUrl, $ingestUser, $ingestToken, $chunk);
+                }
                 foreach ($batches as $b) $totalLines += count($b['values']);
                 $totalFiles++;
                 commitOffset($file, $stateDir);
@@ -232,6 +236,34 @@ function readIncremental(
         $batches[] = ['stream' => $s, 'values' => $values];
     }
     return $batches;
+}
+
+/**
+ * Yield chunks of $batches whose cumulative msg payload stays under $maxBytes.
+ * Each chunk is a valid array of Loki stream payloads. A single oversized entry
+ * still ships as its own chunk (Loki may reject it, but we prefer that to a silent drop).
+ */
+function chunkByBytes(array $batches, int $maxBytes): iterable {
+    $pending = [];          // stream-key => ['stream' => ..., 'values' => [...]]
+    $size = 0;
+
+    foreach ($batches as $b) {
+        $key = json_encode($b['stream']);
+        foreach ($b['values'] as $v) {
+            $vSize = strlen($v[1]) + 40;  // payload + JSON overhead estimate
+            if ($size + $vSize > $maxBytes && $size > 0) {
+                yield array_values($pending);
+                $pending = [];
+                $size = 0;
+            }
+            if (!isset($pending[$key])) {
+                $pending[$key] = ['stream' => $b['stream'], 'values' => []];
+            }
+            $pending[$key]['values'][] = $v;
+            $size += $vSize;
+        }
+    }
+    if (!empty($pending)) yield array_values($pending);
 }
 
 function detectLevel(string $msg, ?array $rules): string {
