@@ -21,6 +21,10 @@ function openSearch(app: string) {
 function openLive(app: string) {
   router.push({ path: '/live', query: { q: `{app="${app}"}` } })
 }
+
+function openApp(app: string) {
+  router.push(`/apps/${encodeURIComponent(app)}`)
+}
 </script>
 
 <template>
@@ -101,15 +105,16 @@ function openLive(app: string) {
             <li
               v-for="row in data.topApps"
               :key="row.app + row.env + row.host"
-              class="flex items-center gap-3 px-3 py-2 hover:bg-neutral-900/80 group"
+              class="flex items-center gap-3 px-3 py-2 hover:bg-neutral-900/80 group cursor-pointer"
+              @click="openApp(row.app)"
             >
-              <span class="font-mono text-sm text-neutral-200 truncate flex-1">{{ row.app }}</span>
+              <span class="font-mono text-sm text-neutral-200 truncate flex-1 group-hover:text-sky-300 transition-colors">{{ row.app }}</span>
               <span class="text-xs text-neutral-500">{{ row.env }}</span>
               <span class="text-xs text-neutral-500 truncate max-w-[120px]">{{ row.host }}</span>
               <span class="text-xs font-mono text-sky-300 tabular-nums w-16 text-right">
                 {{ row.volume.toFixed(0) }}
               </span>
-              <div class="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+              <div class="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity" @click.stop>
                 <UButton size="xs" variant="ghost" icon="i-lucide-radio" :title="`Live tail ${row.app}`" @click="openLive(row.app)" />
                 <UButton size="xs" variant="ghost" icon="i-lucide-search" :title="`Recherche ${row.app}`" @click="openSearch(row.app)" />
               </div>

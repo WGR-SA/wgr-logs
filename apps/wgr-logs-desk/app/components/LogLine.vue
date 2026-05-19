@@ -49,7 +49,7 @@ const levelClass = computed(() => {
     <span class="text-neutral-500 shrink-0">{{ date }}</span>
     <span :class="levelClass" class="shrink-0 uppercase w-12">{{ level }}</span>
     <span class="text-neutral-400 shrink-0">{{ labels.app ?? '?' }}</span>
-    <span class="text-neutral-200 break-all">
+    <span class="text-neutral-200 break-all whitespace-pre-wrap">
       <template v-if="parsed">{{ parsed.msg ?? line }}</template>
       <template v-else>{{ line }}</template>
     </span>

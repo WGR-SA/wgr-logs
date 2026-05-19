@@ -5,6 +5,7 @@ const alerts = useAlertWatcher()
 
 const items = [
   { label: 'Dashboard', to: '/', icon: 'i-lucide-layout-dashboard' },
+  { label: 'Apps', to: '/apps', icon: 'i-lucide-boxes' },
   { label: 'Live', to: '/live', icon: 'i-lucide-radio' },
   { label: 'Recherche', to: '/search', icon: 'i-lucide-search' },
   { label: 'Alertes', to: '/alerts', icon: 'i-lucide-bell' },

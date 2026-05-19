@@ -33,6 +33,8 @@ export default defineNuxtConfig({
     '/alerts': { prerender: true },
     '/agents': { prerender: true },
     '/agents/**': { ssr: false },
+    '/apps': { prerender: true },
+    '/apps/**': { ssr: false },
     '/settings': { prerender: true }
   },
 
