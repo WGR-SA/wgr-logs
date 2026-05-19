@@ -96,10 +96,16 @@ foreach ($sources as $source) {
         }
 
         try {
-            $batch = readIncremental($file, $stateDir, $stream);
-            if ($batch !== null && !empty($batch['values'])) {
-                pushBatch($ingestUrl, $ingestUser, $ingestToken, [$batch]);
-                $totalLines += count($batch['values']);
+            $batches = readIncremental(
+                $file,
+                $stateDir,
+                $stream,
+                $source['multiline_start'] ?? null,
+                $source['level_from_msg'] ?? null
+            );
+            if ($batches !== null && !empty($batches)) {
+                pushBatch($ingestUrl, $ingestUser, $ingestToken, $batches);
+                foreach ($batches as $b) $totalLines += count($b['values']);
                 $totalFiles++;
                 commitOffset($file, $stateDir);
             }
@@ -133,7 +139,25 @@ exit(0);
 
 // ─── Helpers ───────────────────────────────────────────────────────
 
-function readIncremental(string $file, string $stateDir, array $stream): ?array {
+/**
+ * Read new content from $file and return one or more Loki streams.
+ *
+ *   $multilineStart : optional regex (PCRE delimited, e.g. '#^\d{4}-\d{2}-\d{2}#').
+ *     When set, accumulate lines until the next line matches → 1 multi-line entry per match.
+ *
+ *   $levelFromMsg : optional assoc array { "regex" => "level" } applied to each entry's msg
+ *     (first match wins). Used to split a single file into per-level streams.
+ *     Example: { "Error:|Fatal error" => "error", "Warning:" => "warn" }
+ *
+ * Returns an array of Loki stream payloads (one per detected level), or null if nothing new.
+ */
+function readIncremental(
+    string $file,
+    string $stateDir,
+    array $stream,
+    ?string $multilineStart = null,
+    ?array $levelFromMsg = null
+): ?array {
     $offsetFile = $stateDir . '/' . hashPath($file) . '.offset';
     $committed  = file_exists($offsetFile) ? (int) trim((string) file_get_contents($offsetFile)) : 0;
 
@@ -149,32 +173,75 @@ function readIncremental(string $file, string $stateDir, array $stream): ?array 
 
     $fp = fopen($file, 'rb');
     if ($fp === false) return null;
+    if ($committed > 0) fseek($fp, $committed);
 
-    if ($committed > 0) {
-        fseek($fp, $committed);
-    }
-
-    $values = [];
+    // Group raw lines into entries (multi-line aware).
+    $entries = [];
+    $current = null;
     $newOffset = $committed;
-    $ts = (int) (microtime(true) * 1_000_000_000);
+    $maxEntries = 5000;
 
     while (($line = fgets($fp)) !== false) {
         $newOffset = ftell($fp);
         $line = rtrim($line, "\r\n");
-        if ($line === '') continue;
 
-        $values[] = [(string) $ts, $line];
-        $ts++;
-
-        if (count($values) >= 5000) break;
+        if ($multilineStart === null) {
+            if ($line === '') continue;
+            $entries[] = $line;
+            if (count($entries) >= $maxEntries) break;
+        } else {
+            $isStart = preg_match($multilineStart, $line) === 1;
+            if ($isStart) {
+                if ($current !== null) {
+                    $entries[] = $current;
+                    if (count($entries) >= $maxEntries) { $current = null; break; }
+                }
+                $current = $line;
+            } else {
+                if ($current === null) {
+                    // Orphan continuation line at start of read window: emit as a standalone entry.
+                    if ($line !== '') $entries[] = $line;
+                } else {
+                    $current .= "\n" . $line;
+                }
+            }
+        }
     }
+    if ($current !== null) $entries[] = $current;
     fclose($fp);
 
     file_put_contents($offsetFile . '.pending', (string) $newOffset);
 
-    if (empty($values)) return null;
+    if (empty($entries)) return null;
 
-    return ['stream' => $stream, 'values' => $values];
+    // Bucket entries by detected level.
+    $byLevel = [];  // level => values[]
+    $ts = (int) (microtime(true) * 1_000_000_000);
+    foreach ($entries as $msg) {
+        $level = detectLevel($msg, $levelFromMsg);
+        $byLevel[$level] ??= [];
+        $byLevel[$level][] = [(string) $ts, $msg];
+        $ts++;
+    }
+
+    // One Loki stream per level, with the `level` label set.
+    $batches = [];
+    foreach ($byLevel as $level => $values) {
+        $s = $stream;
+        $s['level'] = $level;
+        $batches[] = ['stream' => $s, 'values' => $values];
+    }
+    return $batches;
+}
+
+function detectLevel(string $msg, ?array $rules): string {
+    if (!$rules) return 'info';
+    foreach ($rules as $regex => $level) {
+        // Accept both already-delimited regexes and plain alternations.
+        $pattern = (strlen($regex) > 0 && $regex[0] === '#') ? $regex : '#' . $regex . '#i';
+        if (preg_match($pattern, $msg) === 1) return $level;
+    }
+    return 'info';
 }
 
 function commitOffset(string $file, string $stateDir): void {
