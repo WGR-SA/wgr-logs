@@ -2,6 +2,7 @@ import { TypeOrmModuleOptions } from '@nestjs/typeorm'
 import { Agent } from '../agents/agent.entity'
 import { Source } from '../sources/source.entity'
 import { ConfigVersion } from '../config-versions/config-version.entity'
+import { Problem } from '../problems/problem.entity'
 
 export const getDatabaseConfig = (): TypeOrmModuleOptions => ({
   type: 'postgres',
@@ -12,7 +13,7 @@ export const getDatabaseConfig = (): TypeOrmModuleOptions => ({
   database: process.env.PG_DATABASE ?? 'wgr_logs',
 
   // Explicit entity list (no auto-discovery, WGR convention)
-  entities: [Agent, Source, ConfigVersion],
+  entities: [Agent, Source, ConfigVersion, Problem],
 
   // synchronize: true → recreates schema from entities on startup.
   // OK pour démarrer (pas de data critique), à remplacer par migrations TypeORM
