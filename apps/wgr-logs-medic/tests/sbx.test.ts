@@ -1,17 +1,26 @@
 import { describe, expect, it } from 'vitest'
-import { sbxCreateArgs, sbxPolicyAllowArgs, sbxRunClaudeArgs, sbxRmArgs } from '../src/fix/sbx.js'
+import {
+  sbxSetDefaultDenyArgs,
+  sbxCreateArgs,
+  sbxPolicyAllowArgs,
+  sbxExecClaudeArgs,
+  sbxRmArgs,
+} from '../src/fix/sbx.js'
 
 describe('sbx arg builders', () => {
-  it('creates a named claude sandbox over a workspace dir', () => {
-    expect(sbxCreateArgs('med-123', '/tmp/clone')).toEqual(['create', '--name', 'med-123', 'claude', '/tmp/clone'])
+  it('sets the default deny-all egress policy (idempotent baseline)', () => {
+    expect(sbxSetDefaultDenyArgs()).toEqual(['policy', 'set-default', 'deny-all'])
   })
-  it('allows only the anthropic domain, scoped to the sandbox', () => {
-    expect(sbxPolicyAllowArgs('med-123', 'api.anthropic.com')).toEqual(['policy', 'allow', '--sandbox', 'med-123', 'network', 'api.anthropic.com'])
+  it('creates a named claude sandbox with explicit --cpus over a workspace dir', () => {
+    expect(sbxCreateArgs('med-1', '/tmp/c', 2)).toEqual(['create', '--name', 'med-1', '--cpus', '2', 'claude', '/tmp/c'])
   })
-  it('runs claude headless with the prompt after the -- separator', () => {
-    expect(sbxRunClaudeArgs('med-123', 'FIXPROMPT')).toEqual(['run', '--name', 'med-123', '--', '-p', 'FIXPROMPT'])
+  it('allows network with --sandbox AFTER network subcommand', () => {
+    expect(sbxPolicyAllowArgs('med-1', 'api.anthropic.com')).toEqual(['policy', 'allow', 'network', '--sandbox', 'med-1', 'api.anthropic.com'])
   })
-  it('removes the sandbox', () => {
-    expect(sbxRmArgs('med-123')).toEqual(['rm', '--force', 'med-123'])
+  it('execs claude headless with -p inside the named sandbox', () => {
+    expect(sbxExecClaudeArgs('med-1', 'PROMPT')).toEqual(['exec', 'med-1', 'claude', '-p', 'PROMPT'])
+  })
+  it('removes the sandbox with --force', () => {
+    expect(sbxRmArgs('med-1')).toEqual(['rm', '--force', 'med-1'])
   })
 })

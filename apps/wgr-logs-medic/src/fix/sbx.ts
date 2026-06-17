@@ -1,14 +1,18 @@
 import { type Runner, execRunner } from './git.js'
 
-/** Build the `sbx` arg arrays. Exact flags confirmed at the live task; kept pure + tested. */
-export function sbxCreateArgs(name: string, workspace: string): string[] {
-  return ['create', '--name', name, 'claude', workspace]
+const SBX_CPUS = Number(process.env.WGR_MEDIC_SBX_CPUS ?? '2')
+
+export function sbxSetDefaultDenyArgs(): string[] {
+  return ['policy', 'set-default', 'deny-all']
+}
+export function sbxCreateArgs(name: string, workspace: string, cpus: number = SBX_CPUS): string[] {
+  return ['create', '--name', name, '--cpus', String(cpus), 'claude', workspace]
 }
 export function sbxPolicyAllowArgs(name: string, domain: string): string[] {
-  return ['policy', 'allow', '--sandbox', name, 'network', domain]
+  return ['policy', 'allow', 'network', '--sandbox', name, domain]
 }
-export function sbxRunClaudeArgs(name: string, prompt: string): string[] {
-  return ['run', '--name', name, '--', '-p', prompt]
+export function sbxExecClaudeArgs(name: string, prompt: string): string[] {
+  return ['exec', name, 'claude', '-p', prompt]
 }
 export function sbxRmArgs(name: string): string[] {
   return ['rm', '--force', name]
@@ -21,17 +25,18 @@ export interface SandboxOptions {
   allowDomain?: string
 }
 
-/** Create an egress-locked claude sandbox over `workspace`, run the prompt headless, capture stdout, always clean up. */
+/** Run the fix agent as native claude inside an egress-locked sbx microVM over `workspace`; return its stdout. Always cleans up. */
 export async function runAgentInSandbox(opts: SandboxOptions, run: Runner = execRunner): Promise<{ resultText: string }> {
   const sbx = async (args: string[]): Promise<string> => {
     const res = await run('sbx', args)
     if (res.code !== 0) throw new Error(`sbx ${args[0]} failed: ${res.stderr.trim()}`)
     return res.stdout
   }
+  await sbx(sbxSetDefaultDenyArgs()) // idempotent baseline: deny all egress
   await sbx(sbxCreateArgs(opts.name, opts.workspace))
   try {
     await sbx(sbxPolicyAllowArgs(opts.name, opts.allowDomain ?? 'api.anthropic.com'))
-    const resultText = await sbx(sbxRunClaudeArgs(opts.name, opts.prompt))
+    const resultText = await sbx(sbxExecClaudeArgs(opts.name, opts.prompt))
     return { resultText }
   } finally {
     await run('sbx', sbxRmArgs(opts.name)) // best-effort cleanup
