@@ -3,6 +3,8 @@ import { Agent } from '../agents/agent.entity'
 import { Source } from '../sources/source.entity'
 import { ConfigVersion } from '../config-versions/config-version.entity'
 import { Problem } from '../problems/problem.entity'
+import { Remediation } from '../remediations/remediation.entity'
+import { ProjectContext } from '../project-context/project-context.entity'
 
 export const getDatabaseConfig = (): TypeOrmModuleOptions => ({
   type: 'postgres',
@@ -13,7 +15,7 @@ export const getDatabaseConfig = (): TypeOrmModuleOptions => ({
   database: process.env.PG_DATABASE ?? 'wgr_logs',
 
   // Explicit entity list (no auto-discovery, WGR convention)
-  entities: [Agent, Source, ConfigVersion, Problem],
+  entities: [Agent, Source, ConfigVersion, Problem, Remediation, ProjectContext],
 
   // synchronize: true → recreates schema from entities on startup.
   // OK pour démarrer (pas de data critique), à remplacer par migrations TypeORM
