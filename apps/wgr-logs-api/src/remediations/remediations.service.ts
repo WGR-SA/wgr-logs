@@ -56,13 +56,13 @@ export class RemediationsService {
     return this.remediations.save(existing)
   }
 
-  findByPrNumber(prNumber: number): Promise<Remediation | null> {
-    return this.remediations.findOne({ where: { prNumber }, relations: { problem: true } })
+  findByPrNumberAndRepo(prNumber: number, repo: string): Promise<Remediation | null> {
+    return this.remediations.findOne({ where: { prNumber, repo }, relations: { problem: true } })
   }
 
   /** Apply a GitHub PR event to the matching remediation. Returns it, or null if no match. */
-  async applyWebhookEvent(prNumber: number, event: { kind: 'comment'; comment: string } | { kind: 'merged' } | { kind: 'closed' }): Promise<Remediation | null> {
-    const rem = await this.findByPrNumber(prNumber)
+  async applyWebhookEvent(prNumber: number, repo: string, event: { kind: 'comment'; comment: string } | { kind: 'merged' } | { kind: 'closed' }): Promise<Remediation | null> {
+    const rem = await this.findByPrNumberAndRepo(prNumber, repo)
     if (!rem) return null
     if (event.kind === 'comment') {
       rem.status = 'changes_requested'
