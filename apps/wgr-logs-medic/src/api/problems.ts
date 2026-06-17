@@ -1,7 +1,7 @@
 import type { LokiClient } from '@wgr/logs-client'
 import type { ApiConfig } from '../config/env.js'
 import type { LokiReader } from '../scan/scanner.js'
-import type { ProblemCandidate } from '../types.js'
+import type { Problem, ProblemCandidate } from '../types.js'
 
 export async function postProblem(
   config: ApiConfig,
@@ -15,6 +15,22 @@ export async function postProblem(
     body: JSON.stringify(candidate),
   })
   if (!res.ok) throw new Error(`POST problem failed: ${res.status} ${await res.text()}`)
+}
+
+export async function getProblem(
+  config: ApiConfig,
+  project: string,
+  id: number,
+  fetchImpl: typeof fetch = fetch,
+): Promise<Problem> {
+  const res = await fetchImpl(`${config.url}/projects/${encodeURIComponent(project)}/problems`, {
+    headers: { Authorization: `Bearer ${config.adminToken}` },
+  })
+  if (!res.ok) throw new Error(`GET problems failed: ${res.status} ${await res.text()}`)
+  const problems = (await res.json()) as Problem[]
+  const found = problems.find((p) => p.id === id)
+  if (!found) throw new Error(`problem ${id} not found in project ${project}`)
+  return found
 }
 
 /** Build a LokiReader backed by @wgr/logs-client: returns the first line of each error event. */
