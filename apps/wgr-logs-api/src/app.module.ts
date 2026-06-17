@@ -9,6 +9,7 @@ import { SourceTypesModule } from './source-types/source-types.module'
 import { HealthModule } from './health/health.module'
 import { ProblemsModule } from './problems/problems.module'
 import { RemediationsModule } from './remediations/remediations.module'
+import { ProjectContextModule } from './project-context/project-context.module'
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { RemediationsModule } from './remediations/remediations.module'
     HealthModule,
     ProblemsModule,
     RemediationsModule,
+    ProjectContextModule,
   ],
 })
 export class AppModule {}
