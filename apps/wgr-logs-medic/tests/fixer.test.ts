@@ -14,6 +14,7 @@ describe('buildFixPrompt', () => {
     expect(p).toContain("Trying to get property 'slug'")
     expect(p.toLowerCase()).toContain('do not push')
     expect(p).toContain('```json')
+    expect(p).toContain('<untrusted_log_sample>')
   })
 })
 
@@ -22,6 +23,7 @@ describe('buildResumePrompt', () => {
     const p = buildResumePrompt('please rename the variable')
     expect(p).toContain('please rename the variable')
     expect(p.toLowerCase()).toContain('do not push')
+    expect(p).toContain('<untrusted_pr_comments>')
   })
 })
 

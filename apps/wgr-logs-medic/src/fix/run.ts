@@ -17,6 +17,27 @@ import { redact } from '../scan/redact.js'
 
 const FIX_TOOLS = ['Read', 'Edit', 'Write', 'Glob', 'Grep', 'Bash']
 
+const SECRET_KEYS = new Set([
+  'WGR_GITHUB_TOKEN',
+  'WGR_API_ADMIN_TOKEN',
+  'WGR_API_REGISTER_TOKEN',
+  'WGR_INGEST_TOKEN',
+  'INGEST_AUTH_TOKEN',
+  'GH_TOKEN',
+  'GITHUB_TOKEN',
+])
+
+export function scrubbedAgentEnv(source: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
+  const out: NodeJS.ProcessEnv = {}
+  for (const [k, v] of Object.entries(source)) {
+    if (v === undefined) continue
+    if (SECRET_KEYS.has(k)) continue
+    if (k !== 'ANTHROPIC_API_KEY' && /(_TOKEN|_SECRET|PASSWORD|APIKEY|_KEY)$/i.test(k)) continue
+    out[k] = v
+  }
+  return out
+}
+
 /** Drive one SDK session in `cwd` and collect the outcome. */
 async function runQuery(prompt: string, cwd: string): Promise<QueryOutcome> {
   const iterator = query({
@@ -30,6 +51,7 @@ async function runQuery(prompt: string, cwd: string): Promise<QueryOutcome> {
       effort: process.env.WGR_AGENT_EFFORT ? (process.env.WGR_AGENT_EFFORT as 'high') : 'high',
       maxTurns: Number(process.env.WGR_MEDIC_MAX_TURNS ?? '40'),
       maxBudgetUsd: Number(process.env.WGR_MEDIC_MAX_BUDGET_USD ?? '3'),
+      env: scrubbedAgentEnv(),
     },
   })
   let resultText = ''
@@ -57,7 +79,7 @@ async function generateContext(dir: string): Promise<string> {
     'Read this repository and produce a concise CLAUDE.md (under 400 words): stack, key directories, conventions, how to run tests. Output only the markdown, no fences.'
   const iterator = query({
     prompt,
-    options: { model: 'claude-opus-4-8', tools: ['Read', 'Glob', 'Grep'], allowedTools: ['Read', 'Glob', 'Grep'], permissionMode: 'default', cwd: dir, effort: 'low' },
+    options: { model: 'claude-opus-4-8', tools: ['Read', 'Glob', 'Grep'], allowedTools: ['Read', 'Glob', 'Grep'], permissionMode: 'default', cwd: dir, effort: 'low', env: scrubbedAgentEnv() },
   })
   let text = ''
   for await (const message of iterator) {
@@ -79,6 +101,7 @@ async function resumeQuery(sessionId: string, prompt: string, cwd: string): Prom
       effort: 'high',
       maxTurns: Number(process.env.WGR_MEDIC_MAX_TURNS ?? '40'),
       maxBudgetUsd: Number(process.env.WGR_MEDIC_MAX_BUDGET_USD ?? '3'),
+      env: scrubbedAgentEnv(),
     },
   })
   let resultText = ''
