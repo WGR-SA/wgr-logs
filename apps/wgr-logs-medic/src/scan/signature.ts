@@ -38,5 +38,10 @@ export function parseError(rawLine: string): ParsedError {
     .digest('hex')
     .slice(0, 16)
 
-  return { signature, category, exceptionClass, file, line: lineNo, template }
+  const patternHash = createHash('sha256')
+    .update([category, exceptionClass ?? '', template].join('\n'))
+    .digest('hex')
+    .slice(0, 16)
+
+  return { signature, patternHash, category, exceptionClass, file, line: lineNo, template }
 }

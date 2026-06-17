@@ -7,7 +7,7 @@ import { redact } from './redact.js'
 /** Returns the first line of each error event in the window for a selector. */
 export type LokiReader = (selector: string, startMs: number, endMs: number) => Promise<string[]>
 
-export function groupCandidates(lines: readonly string[]): ProblemCandidate[] {
+export function groupCandidates(lines: readonly string[], tech?: string): ProblemCandidate[] {
   const bySig = new Map<string, ProblemCandidate>()
   for (const raw of lines) {
     const firstLine = raw.split('\n', 1)[0]
@@ -19,6 +19,8 @@ export function groupCandidates(lines: readonly string[]): ProblemCandidate[] {
     }
     bySig.set(p.signature, {
       signature: p.signature,
+      patternHash: p.patternHash,
+      tech,
       category: p.category,
       file: p.file,
       line: p.line,
@@ -46,7 +48,7 @@ export async function runScan(opts: ScanOptions): Promise<ProjectScan[]> {
   const out: ProjectScan[] = []
   for (const project of opts.projects) {
     const lines = await opts.reader(project.lokiSelector, opts.now - opts.windowMs, opts.now)
-    out.push({ project: project.name, candidates: groupCandidates(lines) })
+    out.push({ project: project.name, candidates: groupCandidates(lines, project.tech) })
   }
   return out
 }

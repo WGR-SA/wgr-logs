@@ -11,10 +11,14 @@ export interface ParsedError {
   line?: number
   /** Message with volatile bits normalized (numbers, quoted strings, paths). */
   template: string
+  /** Project-agnostic hash (category + exceptionClass + templated message, NO file path) for cross-project matching. */
+  patternHash: string
 }
 
 export interface ProblemCandidate {
   signature: string
+  patternHash: string
+  tech?: string
   category: string
   file?: string
   line?: number
