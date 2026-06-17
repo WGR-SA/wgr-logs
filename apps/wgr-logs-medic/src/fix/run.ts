@@ -4,15 +4,15 @@ import { query } from '@anthropic-ai/claude-agent-sdk'
 import type { ApiConfig } from '../config/env.js'
 import type { FixTarget } from '../config/projects.js'
 import type { Problem } from '../types.js'
-import { createRemediation, updateRemediation } from '../api/remediations.js'
+import { createRemediation, updateRemediation, listRemediations } from '../api/remediations.js'
 import { getProjectContext, putProjectContext } from '../api/context.js'
 import { mapServerPath } from './path-map.js'
 import { withClone } from './clone.js'
 import { ensureProjectContext } from './context.js'
-import { buildFixPrompt, runFixer, type QueryOutcome } from './fixer.js'
+import { buildFixPrompt, buildResumePrompt, parseFixResult, runFixer, type QueryOutcome } from './fixer.js'
 import { verify } from './verify.js'
 import { publish } from './publish.js'
-import { branchName, execRunner } from './git.js'
+import { branchName, execRunner, Git, Gh } from './git.js'
 
 const FIX_TOOLS = ['Read', 'Edit', 'Write', 'Glob', 'Grep', 'Bash']
 
@@ -61,6 +61,79 @@ async function generateContext(dir: string): Promise<string> {
     if (message.type === 'result' && message.subtype === 'success') text = message.result
   }
   return text.trim() || 'No context generated.'
+}
+
+async function resumeQuery(sessionId: string, prompt: string, cwd: string): Promise<QueryOutcome> {
+  const iterator = query({
+    prompt,
+    options: {
+      resume: sessionId,
+      model: 'claude-opus-4-8',
+      allowedTools: FIX_TOOLS,
+      permissionMode: 'acceptEdits',
+      settingSources: ['project'],
+      cwd,
+      effort: 'high',
+    },
+  })
+  let resultText = ''
+  let outId: string | null = sessionId
+  let costUsd = 0
+  let success = false
+  for await (const message of iterator) {
+    if (message.type === 'result') {
+      outId = message.session_id ?? outId
+      costUsd = message.total_cost_usd ?? 0
+      if (message.subtype === 'success') {
+        resultText = message.result
+        success = true
+      }
+    }
+  }
+  return { resultText, sessionId: outId, costUsd, success }
+}
+
+export interface ResumeFixDeps {
+  api: ApiConfig
+  github: { token: string }
+  target: FixTarget
+  remediationId: number
+}
+
+export async function resumeFix(deps: ResumeFixDeps): Promise<{ prUrl: string }> {
+  const { api, github, target, remediationId } = deps
+  const rem = (await listRemediations(api, target.name)).find((r) => r.id === remediationId)
+  if (!rem) throw new Error(`remediation ${remediationId} not found in project ${target.name}`)
+  if (!rem.sessionId || !rem.branch || !rem.prUrl) throw new Error(`remediation ${remediationId} has no session/branch/PR to resume`)
+
+  return withClone(
+    target.repo,
+    github.token,
+    async (dir) => {
+      const gh = new Gh(dir, github.token, execRunner)
+      const comments = await gh.prComments(rem.prUrl as string)
+      const outcome = await resumeQuery(rem.sessionId as string, buildResumePrompt(comments), dir)
+      if (!outcome.success) throw new Error('resume session did not complete')
+      const fix = parseFixResult(outcome.resultText)
+
+      const v = await verify(dir, fix.changedFiles, execRunner)
+      const git = new Git(dir, execRunner)
+      await git.addAll()
+      await git.commit(`${fix.prTitle} (review update)`)
+      await git.push(rem.branch as string)
+
+      await updateRemediation(api, remediationId, {
+        status: 'pr_open',
+        summary: fix.summary,
+        notVerified: v.notVerified ?? undefined,
+        sessionId: outcome.sessionId ?? undefined,
+        costUsd: rem.costUsd + outcome.costUsd,
+      })
+      return { prUrl: rem.prUrl as string }
+    },
+    execRunner,
+    rem.branch,
+  )
 }
 
 export interface RunFixDeps {

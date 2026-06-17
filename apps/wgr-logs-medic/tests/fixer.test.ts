@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildFixPrompt, parseFixResult } from '../src/fix/fixer.js'
+import { buildFixPrompt, buildResumePrompt, parseFixResult } from '../src/fix/fixer.js'
 
 describe('buildFixPrompt', () => {
   it('includes the repo path, category and redacted sample, and forbids pushing', () => {
@@ -14,6 +14,14 @@ describe('buildFixPrompt', () => {
     expect(p).toContain("Trying to get property 'slug'")
     expect(p.toLowerCase()).toContain('do not push')
     expect(p).toContain('```json')
+  })
+})
+
+describe('buildResumePrompt', () => {
+  it('embeds the comments and forbids pushing', () => {
+    const p = buildResumePrompt('please rename the variable')
+    expect(p).toContain('please rename the variable')
+    expect(p.toLowerCase()).toContain('do not push')
   })
 })
 

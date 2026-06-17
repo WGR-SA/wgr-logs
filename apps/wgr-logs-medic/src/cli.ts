@@ -6,7 +6,7 @@ import { loadProjects, fixEligible } from './config/projects.js'
 import { runScan } from './scan/scanner.js'
 import { lokiReader, postProblem, getProblem } from './api/problems.js'
 import { listRemediations } from './api/remediations.js'
-import { runFix } from './fix/run.js'
+import { runFix, resumeFix } from './fix/run.js'
 
 const program = new Command()
 program.name('wgr-logs-medic').description('Watch Loki, triage recurring problems per project').version('0.1.0')
@@ -62,7 +62,18 @@ program
   .requiredOption('--project <name>', 'project name (from projects.yml)')
   .option('--id <problemId>', 'problem id to fix')
   .option('--projects <path>', 'path to projects.yml')
-  .action(async (flags: { project: string; id?: string; projects?: string }) => {
+  .option('--resume <remediationId>', 'resume an existing remediation on new PR comments')
+  .action(async (flags: { project: string; id?: string; projects?: string; resume?: string }) => {
+    if (flags.resume) {
+      const env = loadEnv()
+      const api = requireApi(env)
+      const github = requireGithub(env)
+      const project = loadProjects(flags.projects).find((p) => p.name === flags.project)
+      if (!project || !fixEligible(project)) throw new Error(`unknown or non-fix-eligible project: ${flags.project}`)
+      const { prUrl } = await resumeFix({ api, github, target: project, remediationId: Number.parseInt(flags.resume, 10) })
+      process.stderr.write(`\nResumed; PR updated: ${prUrl}\n`)
+      return
+    }
     if (!flags.id) throw new Error('provide --id <problemId>')
     const env = loadEnv()
     const api = requireApi(env)

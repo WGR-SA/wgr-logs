@@ -1,3 +1,14 @@
+export function buildResumePrompt(comments: string): string {
+  return [
+    `New review feedback arrived on the pull request you opened:`,
+    comments,
+    ``,
+    `Apply the requested changes on the SAME branch. DO NOT push or open PRs — that is handled outside.`,
+    `If a request is ambiguous, ask a clarifying question instead of guessing.`,
+    `End with the same fenced json block as before (prTitle, prBody, summary, changedFiles).`,
+  ].join('\n')
+}
+
 export interface FixPromptInput {
   repoPath: string
   category: string
