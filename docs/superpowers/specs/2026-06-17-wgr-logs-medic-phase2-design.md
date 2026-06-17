@@ -111,3 +111,14 @@ Webhook-driven detection is Phase 3; MVP is on-demand polling via the CLI.
 - Cross-project remediation **knowledge base** (retrieval of similar past fixes into the prompt) — its own spec → plan, once Phase 2 has accrued remediations.
 - Desktop problems-list view + "Fix" button — the deferred Phase 1 follow-up plan.
 - **Phase 3** — autonomous systemd loop, GitHub webhook, multi-project, auto-selection.
+
+## 11. Security correction (implemented in Phase 2, post-review)
+
+The initial design said the fixer runs with `allowedTools: [...]` + `settingSources: ['project']`. The whole-branch review found this does NOT enforce the sandbox (verified against `@anthropic-ai/claude-agent-sdk@^0.3.170`):
+
+- `allowedTools` only **auto-approves** tools; it does not restrict the set. Use **`tools`** to restrict the base built-in set (and/or `disallowedTools`). The fixer uses `tools: ['Read','Edit','Write','Glob','Grep','Bash']`.
+- `settingSources: ['project']` loads the **target repo's** `.claude/settings.json` (privilege-escalation vector). Dropped — the project context reaches the model via the prompt instead.
+- Bash + a token-embedded clone remote = the agent could `git push`. Mitigation: after clone, `git remote set-url origin <tokenless-url>`; the only credentialed push is the medic's explicit `git push <authUrl> <branch>`.
+- `maxTurns` + `maxBudgetUsd` caps are set (spec §7); a failed fix is recorded as `status: 'failed'`; PR titles/commit messages are redacted.
+
+See memory `agent-sdk-tool-restriction-gotcha`.
