@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common'
 import { InjectRepository } from '@nestjs/typeorm'
 import { Repository } from 'typeorm'
 import { Remediation, type RemediationStatus } from './remediation.entity'
+import { Problem } from '../problems/problem.entity'
 import { CreateRemediationDto } from './dto/create-remediation.dto'
 import { UpdateRemediationDto } from './dto/update-remediation.dto'
 
@@ -10,6 +11,8 @@ export class RemediationsService {
   constructor(
     @InjectRepository(Remediation)
     private readonly remediations: Repository<Remediation>,
+    @InjectRepository(Problem)
+    private readonly problems: Repository<Problem>,
   ) {}
 
   list(project: string): Promise<Remediation[]> {
@@ -49,6 +52,28 @@ export class RemediationsService {
     if (dto.summary !== undefined) existing.summary = dto.summary
     if (dto.diffStat !== undefined) existing.diffStat = dto.diffStat
     if (dto.notVerified !== undefined) existing.notVerified = dto.notVerified
+    if (dto.pendingComment !== undefined) existing.pendingComment = dto.pendingComment
     return this.remediations.save(existing)
+  }
+
+  findByPrNumber(prNumber: number): Promise<Remediation | null> {
+    return this.remediations.findOne({ where: { prNumber }, relations: { problem: true } })
+  }
+
+  /** Apply a GitHub PR event to the matching remediation. Returns it, or null if no match. */
+  async applyWebhookEvent(prNumber: number, event: { kind: 'comment'; comment: string } | { kind: 'merged' } | { kind: 'closed' }): Promise<Remediation | null> {
+    const rem = await this.findByPrNumber(prNumber)
+    if (!rem) return null
+    if (event.kind === 'comment') {
+      rem.status = 'changes_requested'
+      rem.pendingComment = event.comment
+    } else if (event.kind === 'merged') {
+      rem.status = 'merged'
+      if (rem.problem) rem.problem.status = 'merged'
+    } else {
+      rem.status = 'wontfix'
+    }
+    if (event.kind === 'merged' && rem.problem) await this.problems.save(rem.problem)
+    return this.remediations.save(rem)
   }
 }

@@ -46,6 +46,9 @@ export class Remediation {
   @Column({ name: 'not_verified', type: 'text', nullable: true })
   notVerified!: string | null
 
+  @Column({ name: 'pending_comment', type: 'text', nullable: true })
+  pendingComment!: string | null
+
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt!: Date
 

@@ -10,4 +10,5 @@ export class UpdateRemediationDto {
   @IsOptional() @IsString() summary?: string
   @IsOptional() @IsString() diffStat?: string
   @IsOptional() @IsString() notVerified?: string
+  @IsOptional() @IsString() pendingComment?: string
 }
