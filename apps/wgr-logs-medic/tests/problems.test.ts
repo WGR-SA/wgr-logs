@@ -11,7 +11,7 @@ function recordingFetch(response: Response) {
 }
 
 const cfg = { url: 'https://logs.example/mgmt', adminToken: 'ADMIN' }
-const candidate = { signature: 's1', patternHash: 'p1', category: 'Notice', file: '/x.ctp', line: 13, sample: 'x', count: 4, fixabilityScore: 0.9 }
+const candidate = { signature: 's1', patternHash: 'p1', tech: 'cakephp', category: 'Notice', file: '/x.ctp', line: 13, sample: 'x', count: 4, fixabilityScore: 0.9 }
 
 describe('postProblem', () => {
   it('PUTs/POSTs to the project problems route with Bearer admin auth', async () => {
@@ -21,6 +21,7 @@ describe('postProblem', () => {
     expect((calls[0].init?.headers as Record<string, string>).Authorization).toBe('Bearer ADMIN')
     const body = JSON.parse(String(calls[0].init?.body)) as Record<string, unknown>
     expect(body).toMatchObject({ signature: 's1', count: 4, fixabilityScore: 0.9 })
+    expect(body).toMatchObject({ signature: 's1', patternHash: 'p1', tech: 'cakephp', count: 4 })
   })
 
   it('throws on non-2xx', async () => {

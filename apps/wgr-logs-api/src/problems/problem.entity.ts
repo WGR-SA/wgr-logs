@@ -19,6 +19,13 @@ export class Problem {
   category!: string
 
   @Column({ type: 'text', nullable: true })
+  tech!: string | null
+
+  @Index()
+  @Column({ name: 'pattern_hash', type: 'text', nullable: true })
+  patternHash!: string | null
+
+  @Column({ type: 'text', nullable: true })
   file!: string | null
 
   @Column({ type: 'int', nullable: true })

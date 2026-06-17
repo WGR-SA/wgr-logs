@@ -22,6 +22,8 @@ export class ProblemsService {
     const existing = await this.problems.findOne({ where: { project, signature: dto.signature } })
     if (existing) {
       existing.category = dto.category
+      existing.tech = dto.tech ?? null
+      existing.patternHash = dto.patternHash ?? null
       existing.file = dto.file ?? null
       existing.line = dto.line ?? null
       existing.sample = dto.sample
@@ -33,6 +35,8 @@ export class ProblemsService {
       project,
       signature: dto.signature,
       category: dto.category,
+      tech: dto.tech ?? null,
+      patternHash: dto.patternHash ?? null,
       file: dto.file ?? null,
       line: dto.line ?? null,
       sample: dto.sample,
