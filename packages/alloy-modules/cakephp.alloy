@@ -25,6 +25,15 @@ local.file_match "cakephp_{{INDEX}}" {
 loki.process "cakephp_{{INDEX}}" {
   forward_to = [loki.write.wgr.receiver]
 
+  // Group multi-line entries (timestamped header + stack trace / Request URL /
+  // Referer URL) into a single event. Without this, each stack-trace line ships
+  // as its own log line. A new event starts on a "YYYY-MM-DD HH:MM:SS" prefix.
+  stage.multiline {
+    firstline     = "^\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}"
+    max_wait_time = "3s"
+    max_lines     = 512
+  }
+
   // Extract app name + log type from path:
   //   /<base>/<app>/logs/<log_type>.log
   //   /<base>/<app>/app/tmp/logs/<log_type>.log

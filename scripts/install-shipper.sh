@@ -417,17 +417,38 @@ local.file_match "cakephp_{{INDEX}}" {
 
 loki.process "cakephp_{{INDEX}}" {
   forward_to = [loki.write.wgr.receiver]
+
+  // Group multi-line entries (timestamped header + stack trace / Request URL /
+  // Referer URL) into a single event. A new event starts on a timestamp prefix.
+  stage.multiline {
+    firstline     = "^\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}"
+    max_wait_time = "3s"
+    max_lines     = 512
+  }
+
   stage.regex {
     expression = ".*/(?P<app>[^/]+)/(?:logs|app/tmp/logs)/(?P<log_type>[a-z][a-z0-9-]*)\\.log$"
-    source = "filename"
+    source     = "filename"
   }
   stage.labels { values = { app = "", log_type = "" } }
   stage.json { expressions = { json_level = "level" } }
   stage.labels { values = { level = "json_level" } }
-  stage.match { selector = "{level=\"\", log_type=\"error\"}"     stage.static_labels { values = { level = "error" } } }
-  stage.match { selector = "{level=\"\", log_type=\"cli-error\"}" stage.static_labels { values = { level = "error" } } }
-  stage.match { selector = "{level=\"\", log_type=\"debug\"}"     stage.static_labels { values = { level = "debug" } } }
-  stage.match { selector = "{level=\"\", log_type=\"queries\"}"   stage.static_labels { values = { level = "info" } } }
+  stage.match {
+    selector = "{level=\"\", log_type=\"error\"}"
+    stage.static_labels { values = { level = "error" } }
+  }
+  stage.match {
+    selector = "{level=\"\", log_type=\"cli-error\"}"
+    stage.static_labels { values = { level = "error" } }
+  }
+  stage.match {
+    selector = "{level=\"\", log_type=\"debug\"}"
+    stage.static_labels { values = { level = "debug" } }
+  }
+  stage.match {
+    selector = "{level=\"\", log_type=\"queries\"}"
+    stage.static_labels { values = { level = "info" } }
+  }
 }
 
 loki.source.file "cakephp_{{INDEX}}" {
@@ -508,9 +529,18 @@ loki.source.file "nginx_{{INDEX}}_error" {
 # >>> MODULE_BEGIN journald.alloy <<<
 discovery.relabel "systemd_{{INDEX}}" {
   targets = []
-  rule { source_labels = ["__journal__systemd_unit"]    target_label = "unit" }
-  rule { source_labels = ["__journal__hostname"]        target_label = "host" }
-  rule { source_labels = ["__journal_priority_keyword"] target_label = "level" }
+  rule {
+    source_labels = ["__journal__systemd_unit"]
+    target_label  = "unit"
+  }
+  rule {
+    source_labels = ["__journal__hostname"]
+    target_label  = "host"
+  }
+  rule {
+    source_labels = ["__journal_priority_keyword"]
+    target_label  = "level"
+  }
 }
 
 loki.source.journal "systemd_{{INDEX}}" {
@@ -577,8 +607,8 @@ for ((i = 0; i < COUNT; i++)); do
   TYPE=$(jq -r ".sources[$i].type" "$CONFIG")
   MODULE_FILE="$MODULES_DIR/${TYPE}.alloy"
   [[ -f "$MODULE_FILE" ]] || { echo "// SKIPPED: unknown type '$TYPE'" >&2; continue; }
-  ENV=$(jq -r ".sources[$i].env // \"$DEFAULT_ENV\"" "$CONFIG")
-  HOST=$(jq -r ".sources[$i].host // \"$DEFAULT_HOST\"" "$CONFIG")
+  ENV=$(jq -r ".sources[$i].config.env // \"$DEFAULT_ENV\"" "$CONFIG")
+  HOST=$(jq -r ".sources[$i].config.host // \"$DEFAULT_HOST\"" "$CONFIG")
   CONTENT=$(<"$MODULE_FILE")
   CONTENT=${CONTENT//\{\{INDEX\}\}/$i}
   CONTENT=${CONTENT//\{\{ENV\}\}/$ENV}
@@ -586,18 +616,18 @@ for ((i = 0; i < COUNT; i++)); do
   CONTENT=${CONTENT//\{\{CLUSTER\}\}/$DEFAULT_CLUSTER}
   case "$TYPE" in
     pm2)
-      PATHV=$(jq -r ".sources[$i].path // \"/home/debian/.pm2/logs\"" "$CONFIG")
+      PATHV=$(jq -r ".sources[$i].config.path // \"/home/debian/.pm2/logs\"" "$CONFIG")
       CONTENT=${CONTENT//\{\{PATH\}\}/$PATHV}
       ;;
     cakephp|wordpress|prestashop)
-      BASE_DIR=$(jq -r ".sources[$i].base_dir // \"/var/www\"" "$CONFIG")
+      BASE_DIR=$(jq -r ".sources[$i].config.base_dir // \"/var/www\"" "$CONFIG")
       CONTENT=${CONTENT//\{\{BASE_DIR\}\}/$BASE_DIR}
       ;;
     files)
       TARGETS=$'\n'
-      NPATHS=$(jq ".sources[$i].paths | length" "$CONFIG")
+      NPATHS=$(jq ".sources[$i].config.paths | length" "$CONFIG")
       for ((p = 0; p < NPATHS; p++)); do
-        PATHV=$(jq -r ".sources[$i].paths[$p]" "$CONFIG")
+        PATHV=$(jq -r ".sources[$i].config.paths[$p]" "$CONFIG")
         TARGETS+="    {"$'\n'
         TARGETS+="      __path__ = \"$PATHV\","$'\n'
         TARGETS+="      env      = \"$ENV\","$'\n'
@@ -606,10 +636,9 @@ for ((i = 0; i < COUNT; i++)); do
         while IFS=$'\t' read -r KEY VAL; do
           [[ -z "$KEY" ]] && continue
           TARGETS+="      $KEY = \"$VAL\","$'\n'
-        done < <(jq -r ".sources[$i].labels // {} | to_entries[] | \"\\(.key)\\t\\(.value)\"" "$CONFIG")
+        done < <(jq -r ".sources[$i].config.labels // {} | to_entries[] | \"\\(.key)\\t\\(.value)\"" "$CONFIG")
         TARGETS+="    },"$'\n'
       done
-      TARGETS="${TARGETS%,$'\n'}"$'\n'
       CONTENT=${CONTENT//\{\{TARGETS\}\}/$TARGETS}
       ;;
   esac
