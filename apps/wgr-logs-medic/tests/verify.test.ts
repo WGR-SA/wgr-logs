@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { planChecks } from '../src/fix/verify.js'
+import { planChecks, verify } from '../src/fix/verify.js'
+import type { Runner } from '../src/fix/git.js'
 
 describe('planChecks', () => {
   it('lints each changed PHP file with php -l', () => {
@@ -22,5 +23,24 @@ describe('planChecks', () => {
 
   it('no PHP files -> no php -l checks', () => {
     expect(planChecks(['README.md'], () => false).filter((c) => c.cmd === 'php')).toEqual([])
+  })
+})
+
+describe('verify (best-effort)', () => {
+  it('records a missing tool (runner rejects with ENOENT) instead of throwing', async () => {
+    const rejecting: Runner = async () => {
+      throw new Error('spawn php ENOENT')
+    }
+    const out = await verify('/tmp/nonexistent-clone', ['src/a.php'], rejecting)
+    expect(out.ok).toBe(false)
+    expect(out.notVerified).toContain('unavailable')
+    expect(out.notVerified).toContain('php')
+  })
+
+  it('reports ok with no notVerified when every check passes', async () => {
+    const passing: Runner = async () => ({ stdout: '', stderr: '', code: 0 })
+    const out = await verify('/tmp/nonexistent-clone', ['src/a.php'], passing)
+    expect(out.ok).toBe(true)
+    expect(out.notVerified).toBeNull()
   })
 })

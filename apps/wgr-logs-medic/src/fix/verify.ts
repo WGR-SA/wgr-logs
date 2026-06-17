@@ -34,7 +34,14 @@ export async function verify(dir: string, changedFiles: readonly string[], run: 
   const ran: string[] = []
   const failures: string[] = []
   for (const c of plan) {
-    const res = await run(c.cmd, c.args, { cwd: dir })
+    // Best-effort: a missing binary makes the runner reject (spawn ENOENT) — record it, don't abort the fix.
+    let res
+    try {
+      res = await run(c.cmd, c.args, { cwd: dir })
+    } catch (err) {
+      failures.push(`${c.cmd} (unavailable: ${err instanceof Error ? err.message : String(err)})`)
+      continue
+    }
     ran.push(`${c.cmd} ${c.args.join(' ')}`)
     if (res.code !== 0) failures.push(`${c.cmd} (${res.stderr.trim().slice(0, 200)})`)
   }
