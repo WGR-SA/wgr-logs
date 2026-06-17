@@ -1,0 +1,41 @@
+{
+  "name": "@wgr/wgr-logs-medic",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Log-driven remediation agent: watch Loki, triage recurring problems per project",
+  "type": "module",
+  "bin": {
+    "wgr-logs-medic": "./dist/cli.js"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": ["dist", "src"],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsc -p tsconfig.json --watch",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint \"src/**/*.ts\" --max-warnings=0",
+    "test": "vitest run",
+    "start": "node dist/cli.js"
+  },
+  "dependencies": {
+    "@wgr/logs-client": "*",
+    "commander": "^15.0.0",
+    "yaml": "^2.9.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^22.0.0",
+    "eslint": "^10.4.1",
+    "typescript": "^5.5.4",
+    "typescript-eslint": "^8.61.0",
+    "vitest": "^2.0.0"
+  }
+}
