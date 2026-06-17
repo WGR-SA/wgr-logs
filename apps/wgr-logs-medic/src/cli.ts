@@ -7,6 +7,8 @@ import { runScan } from './scan/scanner.js'
 import { lokiReader, postProblem, getProblem } from './api/problems.js'
 import { listRemediations } from './api/remediations.js'
 import { runFix, resumeFix } from './fix/run.js'
+import { runAuto } from './auto/run.js'
+import type { Problem } from './types.js'
 
 const program = new Command()
 program.name('wgr-logs-medic').description('Watch Loki, triage recurring problems per project').version('0.1.0')
@@ -98,6 +100,40 @@ program
     for (const r of rems) {
       process.stderr.write(`  #${r.id}  ${r.status}  ${r.prUrl ?? '-'}  $${r.costUsd.toFixed(2)}\n`)
     }
+  })
+
+program
+  .command('auto')
+  .description('Autonomously resume flagged PRs and fix the easiest unhandled problems (serial, sandboxed)')
+  .option('--projects <path>', 'path to projects.yml')
+  .option('--max <n>', 'max new fixes this pass', '1')
+  .action(async (flags: { projects?: string; max: string }) => {
+    const env = loadEnv()
+    const api = requireApi(env)
+    const github = requireGithub(env)
+    const loki = requireLoki(env)
+    const all = loadProjects(flags.projects)
+    const targets = all.filter(fixEligible)
+    const client = new LokiClient({ baseUrl: loki.baseUrl, basicAuth: { username: 'wgr', password: loki.token } })
+
+    const result = await runAuto({
+      targets,
+      scan: async (project) => {
+        const t = targets.find((x) => x.name === project)!
+        const scans = await runScan({ projects: [t], reader: lokiReader(client), windowMs: 120 * 60_000, now: Date.now() })
+        for (const c of scans[0]?.candidates ?? []) await postProblem(api, project, c)
+      },
+      listProblems: async (project) => {
+        const res = await fetch(`${api.url}/projects/${encodeURIComponent(project)}/problems`, { headers: { Authorization: `Bearer ${api.adminToken}` } })
+        if (!res.ok) throw new Error(`list problems failed: ${res.status}`)
+        return (await res.json()) as Problem[]
+      },
+      listRemediations: (project) => listRemediations(api, project),
+      fix: async ({ target, problem }) => runFix({ api, github, target, problem }),
+      resume: async ({ target, remediationId }) => resumeFix({ api, github, target, remediationId }),
+      max: Number.parseInt(flags.max, 10),
+    })
+    process.stderr.write(`\nauto: resumed ${result.resumed}, fixed ${result.fixed}\n`)
   })
 
 program.parseAsync(process.argv).catch((err: unknown) => {
