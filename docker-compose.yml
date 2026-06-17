@@ -160,6 +160,7 @@ services:
       PG_DATABASE: ${PG_DATABASE_NAME:-wgr_logs}
       ADMIN_TOKEN: ${WGR_API_ADMIN_TOKEN}
       REGISTER_TOKEN: ${WGR_API_REGISTER_TOKEN}
+      GITHUB_WEBHOOK_SECRET: ${GITHUB_WEBHOOK_SECRET}
     depends_on:
       pg:
         condition: service_healthy
