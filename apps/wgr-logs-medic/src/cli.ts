@@ -36,10 +36,22 @@ program
 
     if (flags.dryRun) return
     const api = requireApi(env)
+    let successes = 0
+    let failures = 0
     for (const scan of scans) {
-      for (const c of scan.candidates) await postProblem(api, scan.project, c)
+      for (const c of scan.candidates) {
+        try {
+          await postProblem(api, scan.project, c)
+          successes++
+        } catch (err: unknown) {
+          failures++
+          const msg = err instanceof Error ? err.message : String(err)
+          process.stderr.write(`[${scan.project}] Warning: failed to upsert problem — ${msg}\n`)
+        }
+      }
     }
-    process.stderr.write('\nUpserted to the API.\n')
+    process.stderr.write(`\nUpserted ${successes} problems (${failures} failures).\n`)
+    if (failures > 0) process.exitCode = 1
   })
 
 program.parseAsync(process.argv).catch((err: unknown) => {

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { ProjectSchema, parseProjects } from '../src/config/projects.js'
+import { ProjectSchema, parseProjects, loadProjects } from '../src/config/projects.js'
+import { ConfigError } from '../src/config/env.js'
 
 describe('ProjectSchema', () => {
   it('parses a project with a loki selector', () => {
@@ -16,5 +17,11 @@ describe('parseProjects', () => {
   it('parses a YAML document into a list', () => {
     const yaml = 'projects:\n  - name: prometerre\n    lokiSelector: \'{host="ov-eda3ed", source="cakephp"}\'\n'
     expect(parseProjects(yaml)).toHaveLength(1)
+  })
+})
+
+describe('loadProjects', () => {
+  it('throws ConfigError when the projects file does not exist', () => {
+    expect(() => loadProjects('/nonexistent/definitely/missing.yml')).toThrow(ConfigError)
   })
 })

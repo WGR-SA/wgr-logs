@@ -1,8 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { groupCandidates, type LokiReader } from '../src/scan/scanner.js'
 
-const ERR = (ts: string, msg: string) => ({ ts, line: msg })
-
 describe('groupCandidates', () => {
   it('groups identical errors by signature and counts them', () => {
     const lines = [

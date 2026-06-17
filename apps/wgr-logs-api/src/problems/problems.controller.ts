@@ -14,7 +14,7 @@ export class ProblemsController {
   }
 
   @Post()
-  @HttpCode(201)
+  @HttpCode(200)
   upsert(@Param('project') project: string, @Body() dto: UpsertProblemDto) {
     return this.service.upsert(project, dto)
   }

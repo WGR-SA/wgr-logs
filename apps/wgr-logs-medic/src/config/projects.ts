@@ -3,6 +3,7 @@ import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { parse } from 'yaml'
 import { z } from 'zod'
+import { ConfigError } from './env.js'
 
 export const ProjectSchema = z.object({
   name: z.string().min(1),
@@ -19,5 +20,12 @@ export function parseProjects(yaml: string): Project[] {
 
 export function loadProjects(path?: string): Project[] {
   const file = path ?? join(homedir(), '.wgr-logs-medic', 'projects.yml')
-  return parseProjects(readFileSync(file, 'utf8'))
+  try {
+    return parseProjects(readFileSync(file, 'utf8'))
+  } catch (error) {
+    if (error instanceof Error && 'code' in error && (error as NodeJS.ErrnoException).code === 'ENOENT') {
+      throw new ConfigError(`No projects file found at ${file}. Create it or pass --projects <path>.`)
+    }
+    throw error
+  }
 }
