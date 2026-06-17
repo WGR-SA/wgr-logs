@@ -10,6 +10,7 @@ import { HealthModule } from './health/health.module'
 import { ProblemsModule } from './problems/problems.module'
 import { RemediationsModule } from './remediations/remediations.module'
 import { ProjectContextModule } from './project-context/project-context.module'
+import { WebhooksModule } from './webhooks/webhooks.module'
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { ProjectContextModule } from './project-context/project-context.module'
     ProblemsModule,
     RemediationsModule,
     ProjectContextModule,
+    WebhooksModule,
   ],
 })
 export class AppModule {}
