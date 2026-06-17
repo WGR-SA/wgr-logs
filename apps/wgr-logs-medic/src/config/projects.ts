@@ -9,8 +9,20 @@ export const ProjectSchema = z.object({
   name: z.string().min(1),
   /** A LogQL stream selector identifying this project's app logs in Loki. */
   lokiSelector: z.string().min(1),
+  /** Technology tag, e.g. "cakephp" — drives the memory seam and fixer context. */
+  tech: z.string().min(1).optional(),
+  /** Git remote (owner/name or URL). Presence makes the project fix-eligible. */
+  repo: z.string().min(1).optional(),
+  defaultBranch: z.string().min(1).optional(),
+  /** Server path prefix (from stack traces) stripped to reach the repo root. */
+  pathPrefix: z.string().min(1).optional(),
 })
 export type Project = z.infer<typeof ProjectSchema>
+
+export type FixTarget = Project & { repo: string }
+export function fixEligible(p: Project): p is FixTarget {
+  return typeof p.repo === 'string' && p.repo.length > 0
+}
 
 const FileSchema = z.object({ projects: z.array(ProjectSchema) })
 
