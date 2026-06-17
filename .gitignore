@@ -11,3 +11,7 @@ dist
 docker/traefik/acme.json
 src-tauri/target
 src-tauri/gen
+
+# local incident/forensics artifacts — never commit (public repo)
+leaks.txt
+event_history.csv
