@@ -17,6 +17,7 @@ export interface CreateRemediationBody {
   summary?: string
   diffStat?: string
   notVerified?: string
+  pendingComment?: string
 }
 
 export async function createRemediation(

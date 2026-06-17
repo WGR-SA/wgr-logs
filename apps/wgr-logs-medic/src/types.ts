@@ -28,6 +28,7 @@ export interface Remediation {
   summary: string | null
   diffStat: string | null
   notVerified: string | null
+  pendingComment: string | null
 }
 
 export interface ProjectContext {
