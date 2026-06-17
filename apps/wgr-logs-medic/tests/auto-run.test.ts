@@ -46,4 +46,18 @@ describe('runAuto', () => {
     expect(fix).not.toHaveBeenCalled()
     expect(out.fixed).toBe(0)
   })
+  it('does not throw when a resume rejects; subsequent fix still runs', async () => {
+    const resume = vi.fn(async () => { throw new Error('resume boom') })
+    const fix = vi.fn(async () => ({ prUrl: 'pr', remediationId: 7 }))
+    const d = deps({
+      listRemediations: vi.fn(async () => [R(70, 1, 'changes_requested')]),
+      resume,
+      fix,
+      max: 1,
+    })
+    const out = await runAuto(d)
+    expect(out.resumed).toBe(0)
+    expect(out.fixed).toBe(1)
+    expect(fix).toHaveBeenCalledOnce()
+  })
 })

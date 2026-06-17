@@ -25,8 +25,12 @@ export async function runAuto(deps: AutoDeps): Promise<AutoResult> {
   for (const target of deps.targets) {
     const rems = await deps.listRemediations(target.name)
     for (const r of rems.filter((x) => x.status === 'changes_requested')) {
-      await deps.resume({ target, remediationId: r.id })
-      resumed += 1
+      try {
+        await deps.resume({ target, remediationId: r.id })
+        resumed += 1
+      } catch (err) {
+        process.stderr.write(`auto: resume #${r.id} failed: ${err instanceof Error ? err.message : String(err)}\n`)
+      }
     }
   }
 
@@ -42,8 +46,13 @@ export async function runAuto(deps: AutoDeps): Promise<AutoResult> {
       }
     }
     if (!picked) break
-    await deps.fix(picked)
-    fixed += 1
+    try {
+      await deps.fix(picked)
+      fixed += 1
+    } catch (err) {
+      process.stderr.write(`auto: fix failed: ${err instanceof Error ? err.message : String(err)}\n`)
+      break
+    }
   }
 
   return { resumed, fixed }

@@ -75,7 +75,7 @@ export async function resumeFix(deps: ResumeFixDeps): Promise<{ prUrl: string }>
       github.token,
       async (dir) => {
         const gh = new Gh(dir, github.token, execRunner)
-        const comments = rem.pendingComment ?? (await gh.prComments(rem.prUrl as string))
+        const comments = rem.pendingComment || (await gh.prComments(rem.prUrl as string))
         const resultText = await runAgent(buildResumePrompt(comments), dir)
         const fix = parseFixResult(resultText)
 
@@ -90,6 +90,7 @@ export async function resumeFix(deps: ResumeFixDeps): Promise<{ prUrl: string }>
           summary: fix.summary,
           notVerified: v.notVerified ?? undefined,
           costUsd: rem.costUsd,
+          pendingComment: '',
         })
         return { prUrl: rem.prUrl as string }
       },

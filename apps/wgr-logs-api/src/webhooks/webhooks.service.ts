@@ -16,6 +16,8 @@ export class WebhooksService {
       return (await this.remediations.applyWebhookEvent(prNumber, { kind: 'comment', comment: body })) !== null
     }
     if (eventName === 'pull_request_review' && payload.action === 'submitted') {
+      const state = ((payload.review as { state?: string } | undefined)?.state ?? '').toUpperCase()
+      if (state === 'APPROVED') return false
       const body = ((payload.review as { body?: string } | undefined)?.body ?? '').toString()
       return (await this.remediations.applyWebhookEvent(prNumber, { kind: 'comment', comment: body })) !== null
     }
