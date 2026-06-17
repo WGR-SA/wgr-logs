@@ -7,6 +7,7 @@ import { AgentsModule } from './agents/agents.module'
 import { SourcesModule } from './sources/sources.module'
 import { SourceTypesModule } from './source-types/source-types.module'
 import { HealthModule } from './health/health.module'
+import { ProblemsModule } from './problems/problems.module'
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { HealthModule } from './health/health.module'
     SourcesModule,
     SourceTypesModule,
     HealthModule,
+    ProblemsModule,
   ],
 })
 export class AppModule {}
