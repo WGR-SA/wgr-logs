@@ -8,6 +8,7 @@ const EnvSchema = z.object({
   LOGS_DOMAIN: z.string().optional(),
   INGEST_DOMAIN: z.string().optional(),
   INGEST_AUTH_TOKEN: z.string().optional(),
+  WGR_GITHUB_TOKEN: z.string().optional(),
 })
 export type Env = z.infer<typeof EnvSchema>
 
@@ -42,4 +43,12 @@ export function requireLoki(env: Env): LokiConfig {
   if (!baseUrl) throw new ConfigError('Set WGR_INGEST_URL or INGEST_DOMAIN')
   if (!token) throw new ConfigError('Set WGR_INGEST_TOKEN or INGEST_AUTH_TOKEN')
   return { baseUrl: baseUrl.replace(/\/$/, ''), token }
+}
+
+export interface GithubConfig {
+  token: string
+}
+export function requireGithub(env: Env): GithubConfig {
+  if (!env.WGR_GITHUB_TOKEN) throw new ConfigError('Set WGR_GITHUB_TOKEN (fine-grained PAT, contents + pull-requests, no push to default branch)')
+  return { token: env.WGR_GITHUB_TOKEN }
 }
