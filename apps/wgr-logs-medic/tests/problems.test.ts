@@ -11,7 +11,7 @@ function recordingFetch(response: Response) {
 }
 
 const cfg = { url: 'https://logs.example/mgmt', adminToken: 'ADMIN' }
-const candidate = { signature: 's1', category: 'Notice', file: '/x.ctp', line: 13, sample: 'x', count: 4, fixabilityScore: 0.9 }
+const candidate = { signature: 's1', patternHash: 'p1', category: 'Notice', file: '/x.ctp', line: 13, sample: 'x', count: 4, fixabilityScore: 0.9 }
 
 describe('postProblem', () => {
   it('PUTs/POSTs to the project problems route with Bearer admin auth', async () => {

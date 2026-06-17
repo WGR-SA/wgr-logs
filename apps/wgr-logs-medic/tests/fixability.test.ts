@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { scoreFixability } from '../src/scan/fixability.js'
 import type { ParsedError } from '../src/types.js'
 
-const base: ParsedError = { signature: 's', category: 'Error', template: 't' }
+const base: ParsedError = { signature: 's', category: 'Error', template: 't', patternHash: 's' }
 
 describe('scoreFixability', () => {
   it('rates a localized Notice (file:line known) as highly fixable', () => {
