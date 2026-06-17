@@ -13,7 +13,7 @@ export interface Problem {
   status: string
 }
 
-export type RemediationStatus = 'open' | 'fixing' | 'pr_open' | 'needs_input' | 'changes_requested' | 'merged' | 'wontfix'
+export type RemediationStatus = 'open' | 'fixing' | 'pr_open' | 'needs_input' | 'changes_requested' | 'merged' | 'wontfix' | 'failed'
 
 export interface Remediation {
   id: number

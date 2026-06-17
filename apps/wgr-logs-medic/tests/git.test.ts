@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { cloneUrl, branchName, prCreateArgs } from '../src/fix/git.js'
+import { cloneUrl, plainUrl, branchName, prCreateArgs } from '../src/fix/git.js'
 
 describe('cloneUrl', () => {
   it('injects an x-access-token into an owner/name repo', () => {
@@ -7,6 +7,22 @@ describe('cloneUrl', () => {
   })
   it('normalizes a full https URL and a .git suffix', () => {
     expect(cloneUrl('https://github.com/wgr-sa/prometerre.git', 'TKN')).toBe('https://x-access-token:TKN@github.com/wgr-sa/prometerre.git')
+  })
+})
+
+describe('plainUrl', () => {
+  it('returns a token-less https URL for owner/name form', () => {
+    expect(plainUrl('github.com/wgr-sa/p')).toBe('https://github.com/wgr-sa/p.git')
+  })
+  it('strips a .git suffix', () => {
+    expect(plainUrl('github.com/wgr-sa/p.git')).toBe('https://github.com/wgr-sa/p.git')
+  })
+  it('normalizes a full https URL', () => {
+    expect(plainUrl('https://github.com/wgr-sa/p.git')).toBe('https://github.com/wgr-sa/p.git')
+  })
+  it('contains no token', () => {
+    expect(plainUrl('github.com/wgr-sa/p')).not.toContain('x-access-token')
+    expect(plainUrl('github.com/wgr-sa/p')).not.toContain('@')
   })
 })
 

@@ -12,7 +12,8 @@ import { ensureProjectContext } from './context.js'
 import { buildFixPrompt, buildResumePrompt, parseFixResult, runFixer, type QueryOutcome } from './fixer.js'
 import { verify } from './verify.js'
 import { publish } from './publish.js'
-import { branchName, execRunner, Git, Gh } from './git.js'
+import { branchName, execRunner, Git, Gh, cloneUrl } from './git.js'
+import { redact } from '../scan/redact.js'
 
 const FIX_TOOLS = ['Read', 'Edit', 'Write', 'Glob', 'Grep', 'Bash']
 
@@ -22,11 +23,13 @@ async function runQuery(prompt: string, cwd: string): Promise<QueryOutcome> {
     prompt,
     options: {
       model: 'claude-opus-4-8',
+      tools: FIX_TOOLS,
       allowedTools: FIX_TOOLS,
       permissionMode: 'acceptEdits',
-      settingSources: ['project'],
       cwd,
       effort: process.env.WGR_AGENT_EFFORT ? (process.env.WGR_AGENT_EFFORT as 'high') : 'high',
+      maxTurns: Number(process.env.WGR_MEDIC_MAX_TURNS ?? '40'),
+      maxBudgetUsd: Number(process.env.WGR_MEDIC_MAX_BUDGET_USD ?? '3'),
     },
   })
   let resultText = ''
@@ -54,7 +57,7 @@ async function generateContext(dir: string): Promise<string> {
     'Read this repository and produce a concise CLAUDE.md (under 400 words): stack, key directories, conventions, how to run tests. Output only the markdown, no fences.'
   const iterator = query({
     prompt,
-    options: { model: 'claude-opus-4-8', allowedTools: ['Read', 'Glob', 'Grep'], permissionMode: 'default', cwd: dir, effort: 'low' },
+    options: { model: 'claude-opus-4-8', tools: ['Read', 'Glob', 'Grep'], allowedTools: ['Read', 'Glob', 'Grep'], permissionMode: 'default', cwd: dir, effort: 'low' },
   })
   let text = ''
   for await (const message of iterator) {
@@ -69,11 +72,13 @@ async function resumeQuery(sessionId: string, prompt: string, cwd: string): Prom
     options: {
       resume: sessionId,
       model: 'claude-opus-4-8',
+      tools: FIX_TOOLS,
       allowedTools: FIX_TOOLS,
       permissionMode: 'acceptEdits',
-      settingSources: ['project'],
       cwd,
       effort: 'high',
+      maxTurns: Number(process.env.WGR_MEDIC_MAX_TURNS ?? '40'),
+      maxBudgetUsd: Number(process.env.WGR_MEDIC_MAX_BUDGET_USD ?? '3'),
     },
   })
   let resultText = ''
@@ -106,34 +111,39 @@ export async function resumeFix(deps: ResumeFixDeps): Promise<{ prUrl: string }>
   if (!rem) throw new Error(`remediation ${remediationId} not found in project ${target.name}`)
   if (!rem.sessionId || !rem.branch || !rem.prUrl) throw new Error(`remediation ${remediationId} has no session/branch/PR to resume`)
 
-  return withClone(
-    target.repo,
-    github.token,
-    async (dir) => {
-      const gh = new Gh(dir, github.token, execRunner)
-      const comments = await gh.prComments(rem.prUrl as string)
-      const outcome = await resumeQuery(rem.sessionId as string, buildResumePrompt(comments), dir)
-      if (!outcome.success) throw new Error('resume session did not complete')
-      const fix = parseFixResult(outcome.resultText)
+  try {
+    return await withClone(
+      target.repo,
+      github.token,
+      async (dir) => {
+        const gh = new Gh(dir, github.token, execRunner)
+        const comments = await gh.prComments(rem.prUrl as string)
+        const outcome = await resumeQuery(rem.sessionId as string, buildResumePrompt(comments), dir)
+        if (!outcome.success) throw new Error('resume session did not complete')
+        const fix = parseFixResult(outcome.resultText)
 
-      const v = await verify(dir, fix.changedFiles, execRunner)
-      const git = new Git(dir, execRunner)
-      await git.addAll()
-      await git.commit(`${fix.prTitle} (review update)`)
-      await git.push(rem.branch as string)
+        const v = await verify(dir, fix.changedFiles, execRunner)
+        const git = new Git(dir, execRunner)
+        await git.addAll()
+        await git.commit(redact(`${fix.prTitle} (review update)`))
+        await git.push(rem.branch as string, cloneUrl(target.repo, github.token))
 
-      await updateRemediation(api, remediationId, {
-        status: 'pr_open',
-        summary: fix.summary,
-        notVerified: v.notVerified ?? undefined,
-        sessionId: outcome.sessionId ?? undefined,
-        costUsd: rem.costUsd + outcome.costUsd,
-      })
-      return { prUrl: rem.prUrl as string }
-    },
-    execRunner,
-    rem.branch,
-  )
+        await updateRemediation(api, remediationId, {
+          status: 'pr_open',
+          summary: fix.summary,
+          notVerified: v.notVerified ?? undefined,
+          sessionId: outcome.sessionId ?? undefined,
+          costUsd: rem.costUsd + outcome.costUsd,
+        })
+        return { prUrl: rem.prUrl as string }
+      },
+      execRunner,
+      rem.branch,
+    )
+  } catch (err) {
+    await updateRemediation(api, remediationId, { status: 'failed' })
+    throw err
+  }
 }
 
 export interface RunFixDeps {
@@ -150,42 +160,47 @@ export async function runFix(deps: RunFixDeps): Promise<{ prUrl: string; remedia
 
   const remediation = await createRemediation(api, target.name, { problemId: problem.id, repo: target.repo, status: 'fixing' })
 
-  return withClone(
-    target.repo,
-    github.token,
-    async (dir) => {
-      const context = await ensureProjectContext({
-        repo: target.repo,
-        tech: target.tech,
-        dir,
-        getCtx: (repo) => getProjectContext(api, repo),
-        putCtx: (repo, body) => putProjectContext(api, repo, body),
-        generate: (d) => generateContext(d),
-        readClaudeMd: (d) => (existsSync(join(d, 'CLAUDE.md')) ? readFileSync(join(d, 'CLAUDE.md'), 'utf8') : null),
-        writeClaudeMd: (summary) => writeFileSync(join(dir, 'CLAUDE.md'), summary),
-      })
+  try {
+    return await withClone(
+      target.repo,
+      github.token,
+      async (dir) => {
+        const context = await ensureProjectContext({
+          repo: target.repo,
+          tech: target.tech,
+          dir,
+          getCtx: (repo) => getProjectContext(api, repo),
+          putCtx: (repo, body) => putProjectContext(api, repo, body),
+          generate: (d) => generateContext(d),
+          readClaudeMd: (d) => (existsSync(join(d, 'CLAUDE.md')) ? readFileSync(join(d, 'CLAUDE.md'), 'utf8') : null),
+          writeClaudeMd: (summary) => writeFileSync(join(dir, 'CLAUDE.md'), summary),
+        })
 
-      const prompt = buildFixPrompt({ repoPath, category: problem.category, sample: problem.sample, context })
-      const fix = await runFixer({ prompt, cwd: dir }, (p, cwd) => runQuery(p, cwd))
+        const prompt = buildFixPrompt({ repoPath, category: problem.category, sample: problem.sample, context })
+        const fix = await runFixer({ prompt, cwd: dir }, (p, cwd) => runQuery(p, cwd))
 
-      const v = await verify(dir, fix.changedFiles, execRunner)
-      fix.notVerified = v.notVerified
+        const v = await verify(dir, fix.changedFiles, execRunner)
+        fix.notVerified = v.notVerified
 
-      const branch = branchName(problem.signature, Date.now())
-      const published = await publish({ dir, repo: target.repo, token: github.token, base: target.defaultBranch ?? 'main', branch, fix })
+        const branch = branchName(problem.signature, Date.now())
+        const published = await publish({ dir, repo: target.repo, token: github.token, base: target.defaultBranch ?? 'main', branch, fix })
 
-      await updateRemediation(api, remediation.id, {
-        branch: published.branch,
-        prUrl: published.prUrl,
-        sessionId: fix.sessionId ?? undefined,
-        status: 'pr_open',
-        costUsd: fix.costUsd,
-        summary: fix.summary,
-        diffStat: published.diffStat,
-        notVerified: fix.notVerified ?? undefined,
-      })
-      return { prUrl: published.prUrl, remediationId: remediation.id }
-    },
-    execRunner,
-  )
+        await updateRemediation(api, remediation.id, {
+          branch: published.branch,
+          prUrl: published.prUrl,
+          sessionId: fix.sessionId ?? undefined,
+          status: 'pr_open',
+          costUsd: fix.costUsd,
+          summary: fix.summary,
+          diffStat: published.diffStat,
+          notVerified: fix.notVerified ?? undefined,
+        })
+        return { prUrl: published.prUrl, remediationId: remediation.id }
+      },
+      execRunner,
+    )
+  } catch (err) {
+    await updateRemediation(api, remediation.id, { status: 'failed' })
+    throw err
+  }
 }

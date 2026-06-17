@@ -1,7 +1,7 @@
 import { Column, CreateDateColumn, Entity, Index, ManyToOne, JoinColumn, PrimaryGeneratedColumn, UpdateDateColumn } from 'typeorm'
 import { Problem } from '../problems/problem.entity'
 
-export type RemediationStatus = 'open' | 'fixing' | 'pr_open' | 'needs_input' | 'changes_requested' | 'merged' | 'wontfix'
+export type RemediationStatus = 'open' | 'fixing' | 'pr_open' | 'needs_input' | 'changes_requested' | 'merged' | 'wontfix' | 'failed'
 
 @Entity('remediations')
 export class Remediation {

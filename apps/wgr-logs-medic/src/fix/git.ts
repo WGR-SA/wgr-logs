@@ -27,6 +27,15 @@ export function cloneUrl(repo: string, token: string): string {
   return `https://x-access-token:${token}@github.com/${path}.git`
 }
 
+/** Build a token-less https URL (same path normalization as cloneUrl but no credentials). */
+export function plainUrl(repo: string): string {
+  const path = repo
+    .replace(/^https?:\/\//, '')
+    .replace(/^github\.com\//, '')
+    .replace(/\.git$/, '')
+  return `https://github.com/${path}.git`
+}
+
 export function branchName(signature: string, now: number): string {
   return `medic/fix-${signature}-${now}`
 }
@@ -56,7 +65,8 @@ export class Git {
   commit(message: string): Promise<RunResult> {
     return this.git(['commit', '-m', message])
   }
-  push(branch: string): Promise<RunResult> {
+  push(branch: string, authUrl?: string): Promise<RunResult> {
+    if (authUrl) return this.git(['push', '-u', authUrl, branch])
     return this.git(['push', '-u', 'origin', branch])
   }
   async diffStat(base: string): Promise<string> {

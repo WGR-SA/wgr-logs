@@ -1,5 +1,5 @@
 import { redact } from '../scan/redact.js'
-import { Git, Gh, type Runner, execRunner } from './git.js'
+import { Git, Gh, cloneUrl, type Runner, execRunner } from './git.js'
 import type { FixResult } from './fixer.js'
 
 export interface PublishOptions {
@@ -24,14 +24,15 @@ export async function publish(opts: PublishOptions): Promise<PublishResult> {
   const git = new Git(opts.dir, run)
   const gh = new Gh(opts.dir, opts.token, run)
 
+  const title = redact(opts.fix.prTitle)
   await git.checkoutNewBranch(opts.branch)
   await git.addAll()
-  await git.commit(opts.fix.prTitle)
+  await git.commit(title)
   const diffStat = await git.diffStat(opts.base)
-  await git.push(opts.branch)
+  await git.push(opts.branch, cloneUrl(opts.repo, opts.token))
 
   const body = redact(buildBody(opts.fix))
-  const prUrl = await gh.prCreate({ title: opts.fix.prTitle, body, base: opts.base, head: opts.branch })
+  const prUrl = await gh.prCreate({ title, body, base: opts.base, head: opts.branch })
   return { prUrl, branch: opts.branch, diffStat }
 }
 
