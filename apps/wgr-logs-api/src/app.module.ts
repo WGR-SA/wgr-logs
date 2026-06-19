@@ -9,6 +9,7 @@ import { SourceTypesModule } from './source-types/source-types.module'
 import { HealthModule } from './health/health.module'
 import { ProblemsModule } from './problems/problems.module'
 import { RemediationsModule } from './remediations/remediations.module'
+import { ProjectsModule } from './projects/projects.module'
 import { ProjectContextModule } from './project-context/project-context.module'
 import { WebhooksModule } from './webhooks/webhooks.module'
 
@@ -23,6 +24,7 @@ import { WebhooksModule } from './webhooks/webhooks.module'
     HealthModule,
     ProblemsModule,
     RemediationsModule,
+    ProjectsModule,
     ProjectContextModule,
     WebhooksModule,
   ],
