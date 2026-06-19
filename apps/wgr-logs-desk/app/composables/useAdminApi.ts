@@ -56,6 +56,59 @@ export interface SourceTypesCatalog {
   }>
 }
 
+export type ProblemStatus = 'open' | 'fixing' | 'pr' | 'merged' | 'wontfix'
+
+export interface Problem {
+  id: number
+  project: string
+  signature: string
+  category: string
+  tech: string | null
+  patternHash: string | null
+  file: string | null
+  line: number | null
+  sample: string
+  count: number
+  fixabilityScore: number
+  status: ProblemStatus
+  firstSeen: string
+  lastSeen: string
+}
+
+export type RemediationStatus =
+  | 'open' | 'fixing' | 'pr_open' | 'needs_input'
+  | 'changes_requested' | 'merged' | 'wontfix' | 'failed'
+
+export interface Remediation {
+  id: number
+  problemId: number
+  problem?: Problem
+  repo: string
+  branch: string | null
+  prUrl: string | null
+  prNumber: number | null
+  sessionId: string | null
+  status: RemediationStatus
+  costUsd: number
+  summary: string | null
+  diffStat: string | null
+  notVerified: string | null
+  pendingComment: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface ProjectOverview {
+  name: string
+  problemsTotal: number
+  problemsOpen: number
+  remediationsTotal: number
+  prOpen: number
+  changesRequested: number
+  merged: number
+  failed: number
+}
+
 export class AdminApiError extends Error {
   constructor(message: string, public status: number, public body: string) {
     super(message)
@@ -115,6 +168,18 @@ class AdminApi {
 
   async health(): Promise<{ status: string; database: string }> {
     return this.req<{ status: string; database: string }>('GET', '/health')
+  }
+
+  async listProjects(): Promise<ProjectOverview[]> {
+    return this.req<ProjectOverview[]>('GET', '/projects')
+  }
+
+  async listProblems(project: string): Promise<Problem[]> {
+    return this.req<Problem[]>('GET', `/projects/${encodeURIComponent(project)}/problems`)
+  }
+
+  async listRemediations(project: string): Promise<Remediation[]> {
+    return this.req<Remediation[]>('GET', `/projects/${encodeURIComponent(project)}/remediations`)
   }
 
   private async req<T>(method: string, path: string, body?: unknown): Promise<T> {

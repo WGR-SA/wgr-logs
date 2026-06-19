@@ -9,7 +9,8 @@ const items = [
   { label: 'Live', to: '/live', icon: 'i-lucide-radio' },
   { label: 'Recherche', to: '/search', icon: 'i-lucide-search' },
   { label: 'Alertes', to: '/alerts', icon: 'i-lucide-bell' },
-  { label: 'Agents', to: '/agents', icon: 'i-lucide-cpu' }
+  { label: 'Agents', to: '/agents', icon: 'i-lucide-cpu' },
+  { label: 'Medic', to: '/medic', icon: 'i-lucide-stethoscope' }
 ]
 
 const firingCount = computed(() => alerts.firing.value.length)
